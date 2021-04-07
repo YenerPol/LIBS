@@ -2,7 +2,13 @@ setwd("C:/Users/gomez/Documents/LIBS/Data/EMSLIBS - Contest")
 library(tidyverse)
 
 # data from Pre_proc script
+        # new.trainData 2000x13334
+        # trainClass
+        #  1   2   3   4   5   6   7   8   9  10  11  12 
+        # 180 300 100 120 140 180 100 120 300 100 240 120
 load(file = "./new.trainData.Rdata")
+
+
 # funcion para hallar minimo en a ventana
 find.min <- function(df){
         min.vect <- numeric(length = length(df$index))
@@ -12,7 +18,8 @@ find.min <- function(df){
                 else if( df$Jn[i] > 13334 ) { min.vect[i] <- min( df$I[ df$J1[i]:13334 ] ) }
         }
         min.vect
-} 
+}
+
 # Funcion para hallar la linea base
 find.BL <- function(df, w){
         bi.vect <- numeric(length = length(df$index))
@@ -23,8 +30,9 @@ find.BL <- function(df, w){
         }
         bi.vect
 }
+
 # aplica las funciones anteriores a la matriz de entrenamiento
-apply.to.all <- function(M, w = 50){
+apply.to.all <- function(M, w = 50){ # w es el ancho de la ventana
         output <- list()
         for(i in 1:nrow(new.trainData)){
                 row1 <- new.trainData[i,]
@@ -45,6 +53,7 @@ apply.to.all <- function(M, w = 50){
 lista <- apply.to.all(new.trainData)
 
 plot.spec <- function(spec = 1, n1 = 1, n2= 13334){
+        ## n1 y n2 definen el ancho de la ventana a graficar
         p <- lista[[spec]][n1:n2,] %>% ggplot() + 
                 geom_line(aes(x = index ,y = I), color = "gray") +
                 geom_line(aes(x = index ,y = Bi), color = "blue") + 
@@ -52,7 +61,11 @@ plot.spec <- function(spec = 1, n1 = 1, n2= 13334){
         print(p)
 }
 
-plot.spec(500)
+plot.spec()
 
 save(lista, file = "./spec_corregidos.Rdata")
+save(trainClass, file = "./trainClass.Rdata")
+
+
+
         

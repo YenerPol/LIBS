@@ -7,7 +7,6 @@ library(rhdf5)
 
 # set number of spectra and path to the data files
 setwd("C:/Users/gomez/Documents/LIBS/Data/EMSLIBS - Contest")    # selecting the directory containing the data files
-spectraCount <- 20   # selecting the number of spectra for each sample (maximum of 500), recommended 100
 
 ##########################################
 # Train Data
@@ -22,15 +21,29 @@ h5closeAll()
 # Reduce number of spectra per sample
 ##########################################
 
+# paquetes de datos
+        # Data_1:5 1:20 - 21:40 - 41:60 - 61:80 - 81:100 
+spectraCount <- 100   # selecting the number of spectra for each sample (maximum of 500), recommended 100
+init <- 81
 reddim <- function(x){
-  x <- x[1:spectraCount,]
+  x <- x[init:spectraCount,]
 }
-trainData <- lapply(trainData,reddim)
+Data_6 <- lapply(trainData,reddim)
+save(Data_6, file = "./Data_6.RData")
+rm(Data_6)
+rm(trainData)
 
 ##########################################
+library(tidyverse)
 
-trainData <- as.data.frame(do.call('rbind',trainData)) # lo pasamos a data.frame
+for (i in 1:5) {  load(paste("./Data_",i,".RData", sep = ""))  }
+Data <- list(Data_1,Data_2,Data_3,Data_4,Data_5)
+rm(Data_1,Data_2,Data_3,Data_4,Data_5)
 
+Data <- pmap(Data, rbind) # unica lista para trabajar con codigo original
+
+trainData <- as.data.frame(do.call('rbind', Data)) # lo pasamos a data.frame
+rm(Data)
 # --- tempClass y redClass se pueden remover luego. TEMPORALES
 
 tempClass <- vector()
@@ -62,7 +75,8 @@ gc()
 
 # ---- Save data ----
 
-save(testData, trainData, wavelengths, trainClass, file = "./data_practica.RData")
+#save(testData, trainData, wavelengths, trainClass, file = "./data_practica.RData")
+save(trainData, trainClass, file = "./espectros10000.RData")
 
 
 

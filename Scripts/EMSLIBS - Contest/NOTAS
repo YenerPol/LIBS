@@ -1,0 +1,15 @@
+1. readlnH5.R (para leer los archivos originales, elijo un numero de espectros a guardar train/test)
+        Salida: testData        (datos sin etiqueta, se usaron en la competicion)
+                trainData 
+                wavelengths
+                trainClass
+                file = "./espectros10000.RData"
+2. Data Pre_proc.R
+        - sumar lineas 3 -> 1, minimo 0, normalizacion
+        Entrada:  file = "./espectros10000.RData"
+        Salida: new.trainData
+3. BaseLine_Script.R
+        - aplica "Model free algorithm"
+        Entrada: new.trainData (10000 obs)
+        Salida: save(lista, file = "./spec_corregidos.Rdata") + trainClass
+4. Modeling.R

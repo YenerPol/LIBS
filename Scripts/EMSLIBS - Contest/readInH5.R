@@ -8,9 +8,7 @@ library(rhdf5)
 # set number of spectra and path to the data files
 setwd("C:/Users/gomez/Documents/LIBS/Data/EMSLIBS - Contest")    # selecting the directory containing the data files
 
-
 # Train Data Reading ----
-
 
 wavelengths <- as.data.frame(h5read(file = "train.h5", name = "Wavelengths")) # import wavelengths
 trainClass <- as.data.frame(h5read(file = "train.h5", name = "Class")) # import classes
@@ -32,6 +30,8 @@ Data_6 <- lapply(trainData,reddim)
 save(Data_6, file = "./Data_6.RData")
 rm(Data_6)
 rm(trainData)
+
+# Joining Data ------------------------------------------------------------
 
 library(tidyverse)
 
@@ -56,12 +56,14 @@ for (i in c(seq(500,49500,500))){
 trainClass <- redClass
 
 
-# Small Data set --------------------------------------------------------------
+# Small Data set ----------------------------------------------------------
 
-load("./Data_1.RData")
+# paralas etiquetas usa el codigo anterior
+# load("./Data_1.RData")
 trainClass.Data_1 <- redClass
 
 save(trainClass.Data_1, file = "./trainClass.Data_1.RData") 
+
 # Test Data ---------------------------------------------------------------
 
 

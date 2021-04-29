@@ -4,6 +4,7 @@
                 wavelengths
                 trainClass
                 file = "./espectros10000.RData"
+                tambien Genere un small data set para trabajar en el analisis exploratorio y en el primer modelo 
 2. Data Pre_proc.R
         - sumar lineas 3 -> 1, minimo 0, normalizacion
         Entrada:  file = "./espectros10000.RData"

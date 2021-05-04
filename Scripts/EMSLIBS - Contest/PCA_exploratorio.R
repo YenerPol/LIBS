@@ -3,11 +3,10 @@ setwd("C:/Users/gomez/Documents/LIBS/Data/EMSLIBS - Contest")
 library(tidyverse)
 
 # Read Data ---------------------------------------------------------------
-
 load(file = "./Data_1.RData")
 load(file = "./trainClass.Data_1.RData")
-
 small.data.set <- as.data.frame(do.call('rbind', Data_1))       #Como data frame
+
 rm(Data_1)
 
 # Pre processing ----------------------------------------------------------
@@ -38,32 +37,50 @@ small.data.set <- small.data.set %>%
         as_tibble() %>% 
         mutate(class = trainClass.Data_1)
 
-# PCA ---------------------------------------------------------------------
+# PCA - Sin normalizar ---------------------------------------------------------
+
+small.data.set <- small.data.set %>% 
+        as_tibble() %>% 
+        mutate(class = trainClass.Data_1)
 
 library("FactoMineR") # Performs PCA
 library("factoextra") # Visualize
 
 set.seed(123)
-res.pca <- small.data.set %>% dplyr::select(-class) %>% PCA(graph = FALSE)
+
+# esto replica muy bien lo que tienen en la web
+res.pca <- small.data.set %>% dplyr::select(-class) %>% PCA(graph = FALSE, scale.unit = F)
 
 fviz_pca_ind(res.pca,
              geom = "point", # show points only (nbut not "text")
              habillage = as.factor(trainClass.Data_1), # color by groups
-             #palette = palette(12),
-             #addEllipses = TRUE, # Concentration ellipses
              legend.title = "Classes"
-         
+)
+
+
+## aplicando PCA en clases 4 y 10
+data.4.6 <- small.data.set %>% 
+        filter( class == "4" | class == "10")
+
+two.spec.PCA <- data.4.6 %>% 
+        dplyr::select(-class) %>% 
+        PCA(graph = FALSE, scale.unit = F)
+
+fviz_pca_ind(two.spec.PCA,
+             geom = "point", # show points only (nbut not "text")
+             habillage = as.factor(data.4.6$class), # color by group
+             legend.title = "Classes",
+             addEllipses = TRUE
 )
 
 # Eigenvalues / Variances
 eig.val <- get_eigenvalue(res.pca) %>% 
         as_tibble() %>% 
         rowid_to_column("Ncomp")
+
 colnames(eig.val)
 
-library(ggplot2)
-
-# Cumulative variance explained
+# Cumulative variance explained 
 eig.val %>%  
         ggplot(aes(x = Ncomp, y = cumulative.variance.percent)) + 
         geom_point() +
@@ -73,14 +90,21 @@ eig.val %>%
 # Scree plot
 fviz_eig(res.pca)
 
-sum(eig.val$eigenvalue > 1)     # 225 componentes tienen An eigenvalue > 1
+sum(eig.val$eigenvalue > 1)     # todos los componentes tienen eigenvalue > 1
                                 # Ademas, 225 comp explican el 96.5 de la varianza
 
+# plotly
 g.pca <- fviz_pca_ind(res.pca, geom.ind = "point", # show points only (nbut not "text")
              col.ind = as_factor(trainClass.Data_1), # color by groups 
-             # palette = c("#000000","#E69F00","#56B4E9","#009E73","#F0E442","#0072B2",
-             #             "#D55E00","#CC79A7","#999999" ), 
              addEllipses = TRUE, # Concentration ellipses 
              legend.title = "Groups" )
 
 plotly::ggplotly(g.pca)
+
+# PCA score plot
+loadings <- sqrt(eig.val$eigenvalue)
+
+
+# PCA - escalando los datos -----------------------------------------------
+
+

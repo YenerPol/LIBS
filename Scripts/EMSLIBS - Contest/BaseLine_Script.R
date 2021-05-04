@@ -1,4 +1,4 @@
-setwd("C:/Users/gomez/Documents/LIBS/Data/EMSLIBS - Contest")
+# setwd("C:/Users/gomez/Documents/LIBS/Data/EMSLIBS - Contest")
 library(tidyverse)
 
 # data from Pre_proc script
@@ -6,7 +6,7 @@ library(tidyverse)
         # trainClass
         #  1   2   3   4   5   6   7   8   9  10  11  12 
         # 180 300 100 120 140 180 100 120 300 100 240 120
-load(file = "./new.trainData.Rdata")
+# load(file = "./new.trainData.Rdata")
 
 
 # funcion para hallar minimo en a ventana
@@ -32,10 +32,10 @@ find.BL <- function(df, w){
 }
 
 # aplica las funciones anteriores a la matriz de entrenamiento
-apply.to.all <- function(M, w = 50){ # w es el ancho de la ventana
+apply.to.all <- function(data, w = 50){ # w es el ancho de la ventana
         output <- list()
-        for(i in 1:nrow(new.trainData)){
-                row1 <- new.trainData[i,]
+        for(i in 1:nrow(data)){
+                row1 <- data[i,]
                 M <- data.frame(index = c(1:length(row1)), I = row1)
                 # establece la ventana para cada linea de emision
                 M <- M %>% mutate(J1 = index - w/2 + 1) %>% mutate(Jn = index + w/2)
@@ -50,21 +50,24 @@ apply.to.all <- function(M, w = 50){ # w es el ancho de la ventana
         output
 } 
 
-lista <- apply.to.all(new.trainData)
 
-plot.spec <- function(spec = 1, n1 = 1, n2= 13334){
-        ## n1 y n2 definen el ancho de la ventana a graficar
-        p <- lista[[spec]][n1:n2,] %>% ggplot() + 
-                geom_line(aes(x = index ,y = I), color = "gray") +
-                geom_line(aes(x = index ,y = Bi), color = "blue") + 
-                geom_line(aes(x = index ,y = Int.corrected), color = "red")
-        print(p)
-}
 
-plot.spec()
 
-save(lista, file = "./spec_corregidos.Rdata")
-save(trainClass, file = "./trainClass.Rdata")
+# lista <- apply.to.all(new.trainData)
+# 
+# plot.spec <- function(spec = 1, n1 = 1, n2= 13334){
+#         ## n1 y n2 definen el ancho de la ventana a graficar
+#         p <- lista[[spec]][n1:n2,] %>% ggplot() + 
+#                 geom_line(aes(x = index ,y = I), color = "gray") +
+#                 geom_line(aes(x = index ,y = Bi), color = "blue") + 
+#                 geom_line(aes(x = index ,y = Int.corrected), color = "red")
+#         print(p)
+# }
+# 
+# plot.spec()
+# 
+# save(lista, file = "./spec_corregidos.Rdata")
+# save(trainClass, file = "./trainClass.Rdata")
 
 
 

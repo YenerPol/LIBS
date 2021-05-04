@@ -2,10 +2,20 @@ setwd("C:/Users/gomez/Documents/LIBS/Data/EMSLIBS - Contest")
 ##### Libraries ######
 library(tidyverse)
 
+
+# Cargar dataset 10000 ----------------------------------------------------
 load(file = "./espectros10000.RData")
 #trainData <- as.data.frame(as.matrix(trainData))
 
-# Funcion para sumar lineas
+# Cargar dataset 2000 -----------------------------------------------------
+load(file = "./Data_1.RData")
+load(file = "./trainClass.Data_1.RData")
+small.data.set <- as.data.frame(do.call('rbind', Data_1))       #Como data frame
+rm(Data_1)
+
+
+# Prepro Function ---------------------------------------------------------
+
 data.preprocessing <- function(row1){
         # (1) Sumar tres lineas
         indices <- seq(1, 40002, by = 3)    # vector de indices para la suma    

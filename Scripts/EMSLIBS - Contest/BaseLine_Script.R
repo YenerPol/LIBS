@@ -32,7 +32,7 @@ find.BL <- function(df, w){
 }
 
 # aplica las funciones anteriores a la matriz de entrenamiento
-apply.to.all <- function(data, w = 50){ # w es el ancho de la ventana
+#apply.to.all <- function(data, w = 50){ # w es el ancho de la ventana
         output <- list()
         for(i in 1:nrow(data)){
                 row1 <- data[i,]
@@ -50,25 +50,28 @@ apply.to.all <- function(data, w = 50){ # w es el ancho de la ventana
         output
 } 
 
+apply.to.all <- function(row1, w = 100){ # w es el ancho de la ventana
+        df <- data.frame(index = c(1:length(row1)), I = row1)
+        # establece la ventana para cada linea de emision
+        df <- df %>% mutate(J1 = index - w/2 + 1) %>% mutate(Jn = index + w/2)
+        # encuentra minimo en la ventana
+        df$Min <- find.min(df)  
+        # Encuentra linea base
+        df$Bi <- find.BL(df, w) 
+        # Espectro corregido
+        df <- df %>% mutate( Int.corrected = (I - Bi) )
+        df <- df %>% select(I, Int.corrected, Bi)
+        df
+} 
 
 
+system.time({data_pre <- data_pre %>% map(apply.to.all)})       # 354 segundos :D
 
-# lista <- apply.to.all(new.trainData)
-# 
-# plot.spec <- function(spec = 1, n1 = 1, n2= 13334){
-#         ## n1 y n2 definen el ancho de la ventana a graficar
-#         p <- lista[[spec]][n1:n2,] %>% ggplot() + 
-#                 geom_line(aes(x = index ,y = I), color = "gray") +
-#                 geom_line(aes(x = index ,y = Bi), color = "blue") + 
-#                 geom_line(aes(x = index ,y = Int.corrected), color = "red")
-#         print(p)
-# }
-# 
-# plot.spec()
-# 
-# save(lista, file = "./spec_corregidos.Rdata")
-# save(trainClass, file = "./trainClass.Rdata")
+system.time({ trainData <- apply(trainData, 1, apply.to.all) })
 
+end_time - start_time # Time difference of 6.63887 mins
+trainData <- t(trainData)
 
+# paralelizando
 
         

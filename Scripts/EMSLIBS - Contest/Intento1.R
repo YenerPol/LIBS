@@ -4,13 +4,25 @@ library(tidyverse)
 
 
 # Cargar dataset 10000 ----------------------------------------------------
-load(file = "./espectros10000.RData")
+load(file = "C:/Users/gomez/Documents/LIBS/Data/EMSLIBS - Contest/espectros10000.RData")
+load(file = "C:/Users/gomez/Documents/LIBS/Data/EMSLIBS - Contest/trainClass.RData")
 #trainData <- as.data.frame(as.matrix(trainData))
 
 # Cargar dataset 2000 -----------------------------------------------------
 load(file = "C:/Users/gomez/Documents/LIBS/Data/EMSLIBS - Contest/Data_1.RData")
 load(file = "C:/Users/gomez/Documents/LIBS/Data/EMSLIBS - Contest/trainClass.Data_1.RData")
-small.data.set <- as.data.frame(do.call('rbind', Data_1))       #Como data frame
+# creando unica lista
+Data <- Data_1 %>% map(t)
+df <- NULL
+for (i in 1:100) {
+        if(i == 1){
+                df <- Data[[i]]
+        }else{
+                df <- cbind(df, Data[[i]])
+        }
+}
+df <- as_tibble(df)
+#small.data.set <- as.data.frame(do.call('rbind', Data_1))       #Como data frame
 rm(Data_1)
 
 
@@ -31,20 +43,23 @@ data.preprocessing <- function(row1){
         new.row
 }
 
-small.data.set <- apply(small.data.set, 1, data.preprocessing)
-small.data.set <- t(small.data.set) 
+system.time({data_pre <- df %>% map(data.preprocessing)}) # 95 segundos :D
+
+# ¿Se puede borrar?
+#system.time({data_pre <- apply(small.data.set, 1, data.preprocessing)})
+#system.time({trainData <- t(trainData)}) 
 # save(new.trainData, trainClass, file = "./new.trainData.Rdata")
 
 # Base Line adjustment ----------------------------------------------------
 source("BaseLine_Script.R")
 
-lista <- apply.to.all(small.data.set)
+lista <- apply.to.all(trainData, w = 100)
 
 #espectros.corregidos <-  map(lista, .f = list(. %>% dplyr::select(index, Int.corrected)) )
 new.spec <- map(lista, "Int.corrected") 
 new.spec <- as.data.frame(do.call('rbind', new.spec))
 
-# grafico para inspeccion
+# grafico para comparacion
 plot.spec <- function(spec = 1, n1 = 1, n2= 13334){
                 ## n1 y n2 definen el ancho de la ventana a graficar
                 p <- lista[[spec]][n1:n2,] %>% ggplot() +
@@ -53,36 +68,25 @@ plot.spec <- function(spec = 1, n1 = 1, n2= 13334){
                         geom_line(aes(x = index ,y = Int.corrected), color = "red")
                 print(p)
         }
-plot.spec(n1=5000, n2=10000)
-
-plot.sample <- function(data ,x1=0, x2=40000, samp = 1000, y1=0, y2=0.0025){
+plot.spec(spec = 2, n1=0, n2=13500)
+# grafico para inspeccion
+plot.sample <- function(data ,x1=0, x2=ncol(data), samp = 1000, y1=0, y2=0.0025){
         sample <- data.frame(wavelength = 1:ncol(data), intensity = as.numeric(data[samp,]))
         p <- sample %>% ggplot(aes(wavelength, intensity))
-        p + geom_line() + xlim(x1, x2) + #ylim(y1, y2) + 
+        p + geom_line() + xlim(x1, x2) + ylim(y1, y2) + 
                 ggtitle(paste("Sample", as.character(samp)))
 }
+plot.sample(new.spec, samp = 2000)
 
-plot.sample(new.spec, samp = 2000, x2 = ncol(new.spec))
-rm( small.data.set)
-# PCA - No normalizado ----------------------------------------------------
 
-new.spec <- new.spec %>% 
-        as_tibble() %>% 
-        mutate(class = trainClass.Data_1)
+# sPLADA model ------------------------------------------------------------
 
-library("FactoMineR") # Performs PCA
-library("factoextra") # Visualize
+library(mixOmics)
 
-set.seed(123)
-
-# esto replica muy bien lo que tienen en la web
-res.pca <- new.spec %>% dplyr::select(-class) %>% PCA(graph = FALSE, scale.unit = T)
-
-g <- fviz_pca_ind(res.pca,
-             geom = "point", # show points only (nbut not "text")
-             habillage = as.factor(trainClass.Data_1), # color by groups
-             legend.title = "Classes"
-             )
-
-library(plotly)
-ggplotly(g)
+X <- new.spec %>% as.matrix()
+Y <- trainClass %>%  as.factor()
+comp <- 20
+N_keppX <- rep(50, comp)
+MyResult.splsda <- splsda(X, Y, ncomp = comp, keepX = N_keppX)
+plotIndiv(MyResult.splsda, ind.names = F)
+auc.plsda <- auroc(MyResult.splsda)

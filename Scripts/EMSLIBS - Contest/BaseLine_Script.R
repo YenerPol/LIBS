@@ -32,23 +32,23 @@ find.BL <- function(df, w){
 }
 
 # aplica las funciones anteriores a la matriz de entrenamiento
-#apply.to.all <- function(data, w = 50){ # w es el ancho de la ventana
-        output <- list()
-        for(i in 1:nrow(data)){
-                row1 <- data[i,]
-                M <- data.frame(index = c(1:length(row1)), I = row1)
-                # establece la ventana para cada linea de emision
-                M <- M %>% mutate(J1 = index - w/2 + 1) %>% mutate(Jn = index + w/2)
-                # encuentra minimo en la ventana
-                M$Min <- find.min(M)  
-                # Encuentra linea base
-                M$Bi <- find.BL(M, w) 
-                # Espectro corregido
-                M <- M %>% mutate( Int.corrected = (I - Bi) )
-                output[[i]] <- M
-        }
-        output
-} 
+# apply.to.all <- function(data, w = 50){ # w es el ancho de la ventana
+#         output <- list()
+#         for(i in 1:nrow(data)){
+#                 row1 <- data[i,]
+#                 M <- data.frame(index = c(1:length(row1)), I = row1)
+#                 # establece la ventana para cada linea de emision
+#                 M <- M %>% mutate(J1 = index - w/2 + 1) %>% mutate(Jn = index + w/2)
+#                 # encuentra minimo en la ventana
+#                 M$Min <- find.min(M)  
+#                 # Encuentra linea base
+#                 M$Bi <- find.BL(M, w) 
+#                 # Espectro corregido
+#                 M <- M %>% mutate( Int.corrected = (I - Bi) )
+#                 output[[i]] <- M
+#         }
+#         output
+# } 
 
 apply.to.all <- function(row1, w = 100){ # w es el ancho de la ventana
         df <- data.frame(index = c(1:length(row1)), I = row1)

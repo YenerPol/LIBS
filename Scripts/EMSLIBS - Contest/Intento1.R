@@ -12,20 +12,14 @@ load(file = "C:/Users/gomez/Documents/LIBS/Data/EMSLIBS - Contest/trainClass.RDa
 load(file = "C:/Users/gomez/Documents/LIBS/Data/EMSLIBS - Contest/Data_1.RData")
 load(file = "C:/Users/gomez/Documents/LIBS/Data/EMSLIBS - Contest/trainClass.Data_1.RData")
 # creando unica lista
-Data <- Data_1 %>% map(t)
-df <- NULL
+lista <- vector(mode = "list", length = 2000)
+z <- 0
 for (i in 1:100) {
-        if(i == 1){
-                df <- Data[[i]]
-        }else{
-                df <- cbind(df, Data[[i]])
+        for (j in 1:20) {
+                z <- z+1
+                lista[[z]] <- Data_1[[i]][j,]                                
         }
 }
-df <- as_tibble(df)
-#small.data.set <- as.data.frame(do.call('rbind', Data_1))       #Como data frame
-rm(Data_1)
-
-
 # Prepro Function ---------------------------------------------------------
 data.preprocessing <- function(row1){
         # (1) Sumar tres lineas
@@ -43,32 +37,30 @@ data.preprocessing <- function(row1){
         new.row
 }
 
-system.time({data_pre <- df %>% map(data.preprocessing)}) # 95 segundos :D
-
-# ¿Se puede borrar?
-#system.time({data_pre <- apply(small.data.set, 1, data.preprocessing)})
-#system.time({trainData <- t(trainData)}) 
-# save(new.trainData, trainClass, file = "./new.trainData.Rdata")
+library(furrr)
+plan(multisession, workers = 3)
+system.time({data_pre <- lista %>% future_map(data.preprocessing)}) # 35seg 
 
 # Base Line adjustment ----------------------------------------------------
 source("BaseLine_Script.R")
 
-lista <- apply.to.all(trainData, w = 100)
+system.time({ spec_NoBL <- data_pre %>% future_map(apply.to.all) })
 
+#lista <- apply.to.all(trainData, w = 100)
 #espectros.corregidos <-  map(lista, .f = list(. %>% dplyr::select(index, Int.corrected)) )
 new.spec <- map(lista, "Int.corrected") 
 new.spec <- as.data.frame(do.call('rbind', new.spec))
 
 # grafico para comparacion
-plot.spec <- function(spec = 1, n1 = 1, n2= 13334){
+plot.spec <- function(dat, sample = 1){
                 ## n1 y n2 definen el ancho de la ventana a graficar
-                p <- lista[[spec]][n1:n2,] %>% ggplot() +
-                        geom_line(aes(x = index ,y = I), color = "gray") +
-                        geom_line(aes(x = index ,y = Bi), color = "blue") +
-                        geom_line(aes(x = index ,y = Int.corrected), color = "red")
+                p <- dat[[sample]] %>% ggplot() +
+                        geom_line(aes(x = 1:nrow(dat[[sample]]) ,y = I), color = "gray") +
+                        geom_line(aes(x = 1:nrow(dat[[sample]]) ,y = Bi), color = "blue") +
+                        geom_line(aes(x = 1:nrow(dat[[sample]]) ,y = Int.corrected), color = "red")
                 print(p)
         }
-plot.spec(spec = 2, n1=0, n2=13500)
+plot.spec(spec_NoBL)
 # grafico para inspeccion
 plot.sample <- function(data ,x1=0, x2=ncol(data), samp = 1000, y1=0, y2=0.0025){
         sample <- data.frame(wavelength = 1:ncol(data), intensity = as.numeric(data[samp,]))

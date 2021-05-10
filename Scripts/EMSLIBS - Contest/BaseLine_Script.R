@@ -50,7 +50,7 @@ find.BL <- function(df, w){
 #         output
 # } 
 
-apply.to.all <- function(row1, w = 100){ # w es el ancho de la ventana
+BaseLine <- function(row1, w = 100){ # w es el ancho de la ventana
         df <- data.frame(index = c(1:length(row1)), I = row1)
         # establece la ventana para cada linea de emision
         df <- df %>% mutate(J1 = index - w/2 + 1) %>% mutate(Jn = index + w/2)
@@ -60,17 +60,17 @@ apply.to.all <- function(row1, w = 100){ # w es el ancho de la ventana
         df$Bi <- find.BL(df, w) 
         # Espectro corregido
         df <- df %>% mutate( Int.corrected = (I - Bi) )
-        df <- df %>% select(I, Int.corrected, Bi)
+        df <- df %>% dplyr::select(I, Int.corrected, Bi)
         df
 } 
 
 
-system.time({data_pre <- data_pre %>% map(apply.to.all)})       # 354 segundos :D
-
-system.time({ trainData <- apply(trainData, 1, apply.to.all) })
-
-end_time - start_time # Time difference of 6.63887 mins
-trainData <- t(trainData)
+# system.time({data_pre <- data_pre %>% map(apply.to.all)})       # 354 segundos :D
+# 
+# system.time({ trainData <- apply(trainData, 1, apply.to.all) })
+# 
+# end_time - start_time # Time difference of 6.63887 mins
+# trainData <- t(trainData)
 
 # paralelizando
 

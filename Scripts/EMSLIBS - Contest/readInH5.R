@@ -16,19 +16,18 @@ trainData <- h5read(file = "train.h5", name = "Spectra") # import spectra
 h5closeAll()
 
 # Reduce number of spectra per sample ----
-
   # paquetes de datos
-        # Data_1:5 1:20 - 21:40 - 41:60 - 61:80 - 81:100 
+    # Data_1:5 1:20 - 21:40 - 41:60 - 61:80 - 81:100 
 
-spectraCount <- 20   # selecting the number of spectra for each sample (maximum of 500), recommended 100
+spectraCount <- 40   # selecting the number of spectra for each sample (maximum of 500), recommended 100
 init <- 1
 
 reddim <- function(x){
   x <- x[init:spectraCount,]
 }
-Data_6 <- lapply(trainData,reddim)
-save(Data_6, file = "./Data_6.RData")
-rm(Data_6)
+Data <- lapply(trainData,reddim)
+save(Data, file = "./Data30.RData")
+rm(Data)
 rm(trainData)
 
 # Joining Data ------------------------------------------------------------
@@ -36,8 +35,8 @@ rm(trainData)
 library(tidyverse)
 
 for (i in 1:5) {  load(paste("./Data_",i,".RData", sep = ""))  }
-Data <- list(Data_1,Data_2,Data_3,Data_4,Data_5)
-rm(Data_1,Data_2,Data_3,Data_4,Data_5)
+Data <- list(Data_1,Data_2)
+rm(Data_1,Data_2)
 
 Data <- pmap(Data, rbind) # unica lista para trabajar con codigo original
 

@@ -3,33 +3,29 @@ setwd("C:/Users/gomez/Documents/LIBS/Scripts/EMSLIBS - Contest")
 library(tidyverse)
 
 
-# Cargar dataset 10000 ----------------------------------------------------
-load(file = "C:/Users/gomez/Documents/LIBS/Data/EMSLIBS - Contest/espectros10000.RData")
-load(file = "C:/Users/gomez/Documents/LIBS/Data/EMSLIBS - Contest/trainClass.RData")
-#trainData <- as.data.frame(as.matrix(trainData))
-
-# Cargar dataset 2000 -----------------------------------------------------
+# Cargar dataset ----------------------------------------------------
+# 10k espectros
+load(file = "C:/Users/gomez/Documents/LIBS/Data/EMSLIBS - Contest/Data10000.RData")
+# 2k espectros
 load(file = "C:/Users/gomez/Documents/LIBS/Data/EMSLIBS - Contest/Data_1.RData")
 load(file = "C:/Users/gomez/Documents/LIBS/Data/EMSLIBS - Contest/trainClass.Data_1.RData")
+# 4k espectros
+load(file = "C:/Users/gomez/Documents/LIBS/Data/EMSLIBS - Contest/data4000.RData")
 # creando unica lista
-
-fun1 <- function(dat, rows = 40){
+fun.lista <- function(dat){
         lista <- vector(mode = "list", length = 2000)
         z <- 0
         for (i in 1:100) {
-                for (j in 1:rows) {
+                for (j in 1:nrow(dat[[1]])) {
                         z <- z+1
                         lista[[z]] <- dat[[i]][j,]                                
                 }
         }
         lista
 }
-lista <- fun1(Data_1, rows = 20)
 
-# Cargar dataset 4000 -----------------------------------------------------
-load(file = "C:/Users/gomez/Documents/LIBS/Data/EMSLIBS - Contest/data4000.RData")
-lista <- fun1(Data, rows = 40)
 # Prepro Function ---------------------------------------------------------
+# Funcion suma lineas 3 -> 1 y normaliza por area total
 data.preprocessing <- function(row1){
         # (1) Sumar tres lineas
         indices <- seq(1, 40002, by = 3)    # vector de indices para la suma    
@@ -47,16 +43,18 @@ data.preprocessing <- function(row1){
 }
 
 library(furrr)
-plan(multisession, workers = 3)
-system.time({ data_pre <- lista %>% future_map(data.preprocessing) }) # 85seg / 4000 espectros 
-rm(lista, Data)
-# Base Line adjustment ----------------------------------------------------
 source("BaseLine_Script.R")
 plan(multisession, workers = 3)
-system.time({ spec_NoBL <- data_pre %>% future_map(BaseLine) }) # 270 seg / 4000 spec
+# Funcion aplica data.preprocessing y llama funcion para sustraer BL
+prepro.total <- function(lista){
+        data_pre <- fun.lista(lista)
+        data_pre <- data_pre %>% future_map(data.preprocessing)
+        data_pre <- data_pre %>% future_map(BaseLine)
+        data_pre
+}
+pre.procd.data <- prepro.total(Data_1)
 
-
-# grafico para comparacion
+# grafico para comparacion --------------------------------------------------
 plot.spec <- function(dat, sample = 1){
         ## n1 y n2 definen el ancho de la ventana a graficar
         p <- dat[[sample]] %>% ggplot() +
@@ -65,22 +63,8 @@ plot.spec <- function(dat, sample = 1){
                 geom_line(aes(x = 1:nrow(dat[[sample]]) ,y = Int.corrected), color = "red")
         print(p)
 }
-plot.spec(spec_NoBL)
-
-# new.spec <- map(spec_NoBL, `[[`, c("Int.corrected")) #%>% map_dfc(rbind)
-# new.spec <- new.spec %>% map(rbind)
-# df <- data.frame(matrix(unlist(new.spec), nrow=length(new.spec), byrow=TRUE))
-
-# grafico para inspeccion
-plot.sample <- function(data ,x1=0, x2=ncol(data), samp = 1000, y1=0, y2=0.0025){
-        sample <- data.frame(wavelength = 1:ncol(data), intensity = as.numeric(data[samp,]))
-        p <- sample %>% ggplot(aes(wavelength, intensity))
-        p + geom_line() + xlim(x1, x2) + ylim(y1, y2) + 
-                ggtitle(paste("Sample", as.character(samp)))
-}
-plot.sample(df, samp = 1)
-
-# sPLADA model ------------------------------------------------------------
+plot.spec(pre.procd.data)
+# sPLADA model 1 ------------------------------------------------------------
 
 library(mixOmics)
 set.seed(123)
@@ -94,8 +78,8 @@ test <- which(samp == 1)
 # rest will compose the training set
 train <- setdiff(1:nrow(X), test) 
 
-comp <- 45
-N_keppX <- rep(50, comp)
+comp <- 5
+N_keppX <- rep(100, comp)
 MyResult.splsda <- splsda(X[train,], Y[train], ncomp = comp, keepX = N_keppX, near.zero.var = F)
 # plotIndiv(MyResult.splsda, ind.names = F)
 # auc.plsda <- auroc(MyResult.splsda)
@@ -103,6 +87,56 @@ MyResult.splsda <- splsda(X[train,], Y[train], ncomp = comp, keepX = N_keppX, ne
 # then predict
 test.predict <- predict(MyResult.splsda, X[test, ])
 # store prediction for the 4th component
-prediction <- test.predict$MajorityVote 
+prediction <- test.predict$class$mahalanobis.dist[,1]
 confusion.mat <- get.confusion_matrix(truth = Y[test], predicted = prediction)
+get.BER(confusion.mat)
+
+# Model Tuning 
+perf.plsda <- perf(MyResult.splsda, validation = "Mfold", folds = 5, 
+                   progressBar = TRUE, auc = TRUE, nrepeat = 5) 
+
+
+# PLS-DA analysis ---------------------------------------------------------
+
+library(mixOmics)
+set.seed(123)
+X <- map_dfc(pre.procd.data, `[[`, "Int.corrected" ) %>% as.matrix() %>% t() %>% as.data.frame()
+Y <- trainClass %>%  as.factor()
+
+## ---- CV ---- ##
+plsda.CV.model <- plsda(X, Y, ncomp = 15)
+plotIndiv(srbct.plsda , comp = c(1,2),
+          group = Y, ind.names = FALSE, 
+          ellipse = TRUE, legend = TRUE, title = 'PLSDA on SRBCT')
+
+perf.plsda.srbct <- perf(srbct.plsda, validation = "Mfold", folds = 3, 
+                         progressBar = T, auc = TRUE, nrepeat = 3) 
+
+plot(perf.plsda.srbct, col = color.mixo(5:7), sd = TRUE, legend.position = "horizontal")
+
+test.predict <- predict(srbct.plsda, X)
+prediction <- test.predict$class$mahalanobis.dist[,1]
+confusion.mat <- get.confusion_matrix(truth = Y, predicted = prediction)
+get.BER(confusion.mat)
+
+## ---- validation set ---- ##
+srbct.plsda <- plsda(X[train,], Y[train], ncomp = 25)
+test.predict <- predict(srbct.plsda, X[test, ])
+prediction <- test.predict$class$max.dist[,1]
+confusion.mat <- get.confusion_matrix(truth = Y[test], predicted = prediction)
+get.BER(confusion.mat)
+
+# New data_3
+
+load(file = "C:/Users/gomez/Documents/LIBS/Data/EMSLIBS - Contest/Data_3.RData")
+lista3 <- fun1(Data_3, rows = 20)
+data_pre3 <- lista3 %>% future_map(data.preprocessing)   
+rm(lista3, Data_3)
+spec_NoBL3 <- data_pre3 %>% future_map(BaseLine)
+X3 <- map_dfc(spec_NoBL3, `[[`, "Int.corrected" ) %>% as.matrix() %>% t() %>% as.data.frame()
+Y3 <- trainClass[4001:6000] %>%  as.factor()
+
+test.predict <- predict(srbct.plsda, X3)
+prediction <- test.predict$class$mahalanobis.dist[,20]
+confusion.mat <- get.confusion_matrix(truth = Y3, predicted = prediction)
 get.BER(confusion.mat)

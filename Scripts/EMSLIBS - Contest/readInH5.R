@@ -19,7 +19,7 @@ h5closeAll()
   # paquetes de datos
     # Data_1:5 1:20 - 21:40 - 41:60 - 61:80 - 81:100 
 
-spectraCount <- 40   # selecting the number of spectra for each sample (maximum of 500), recommended 100
+spectraCount <- 20   # selecting the number of spectra for each sample (maximum of 500), recommended 100
 init <- 1
 
 reddim <- function(x){
@@ -35,7 +35,7 @@ rm(trainData)
 library(tidyverse)
 
 for (i in 1:5) {  load(paste("./Data_",i,".RData", sep = ""))  }
-Data <- list(Data_1,Data_2)
+Data <- list(Data_1,Data_2,Data_3,Data_4,Data_5)
 rm(Data_1,Data_2)
 
 Data <- pmap(Data, rbind) # unica lista para trabajar con codigo original
@@ -80,8 +80,7 @@ gc()
 
 # Save data ----
 
-#save(testData, trainData, wavelengths, trainClass, file = "./data_practica.RData")
-save(trainData, trainClass, file = "./espectros10000.RData")
+save(Data, trainClass, file = "./Data10000.RData")
 
 
 

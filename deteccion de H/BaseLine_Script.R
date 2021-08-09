@@ -45,7 +45,7 @@ find.BL <- function(df, w){
 #lista <- apply.to.all(M_ARG_02_ppm)
 
 
-BaseLine <- function(row1, w = 100){ # w es el ancho de la ventana
+BaseLine <- function(row1, w = 200){ # w es el ancho de la ventana
         df <- data.frame(index = c(1:length(row1)), I = row1)
         # establece la ventana para cada linea de emision
         df <- df %>% mutate(J1 = index - w/2 + 1) %>% mutate(Jn = index + w/2)

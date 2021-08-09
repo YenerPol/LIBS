@@ -30,9 +30,9 @@ plot.comparison(lista, sample = 40)
 
 # correcion BL por detector -----------------------------------------------------------------
 
-detec_1 <-  apply(M_ARG_02_ppm[,1:2048], 1, BaseLine, w=300)
-detec_2 <-  apply(M_ARG_02_ppm[,2049:3983], 1, BaseLine, w=300)
-detec_3 <-  apply(M_ARG_02_ppm[,3984:5924], 1, BaseLine, w=300)
+detec_1 <-  apply(M_ARG_02_ppm[,1:2048], 1, BaseLine, w=200)
+detec_2 <-  apply(M_ARG_02_ppm[,2049:3983], 1, BaseLine, w=200)
+detec_3 <-  apply(M_ARG_02_ppm[,3984:5924], 1, BaseLine, w=200)
 
 plot.comparison(detec_1, sample = 40)
 plot.comparison(detec_2, sample = 40)

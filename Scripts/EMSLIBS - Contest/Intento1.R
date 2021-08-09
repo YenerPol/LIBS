@@ -1,7 +1,7 @@
 setwd("C:/Users/gomez/Documents/LIBS/Scripts/EMSLIBS - Contest")
-##### Libraries ######
+# Libraries ---------------------------------------------------------
 library(tidyverse)
-
+library(tictoc)
 
 # Cargar dataset ----------------------------------------------------
 # 10k espectros
@@ -52,8 +52,9 @@ prepro.total <- function(lista){
         data_pre <- data_pre %>% future_map(BaseLine)
         data_pre
 }
-pre.procd.data <- prepro.total(Data_1)
-
+pre.procd.data <- prepro.total(Data)
+rm(Data)
+rm(BaseLine, data.preprocessing, find.BL, find.min, fun.lista, prepro.total)
 # grafico para comparacion --------------------------------------------------
 plot.spec <- function(dat, sample = 1){
         ## n1 y n2 definen el ancho de la ventana a graficar
@@ -68,7 +69,7 @@ plot.spec(pre.procd.data)
 
 library(mixOmics)
 set.seed(123)
-X <- map_dfc(spec_NoBL, `[[`, "Int.corrected" ) %>% as.matrix() %>% t() %>% as.data.frame()
+X <- map_dfc(pre.procd.data, `[[`, "Int.corrected" ) %>% as.matrix() %>% t() %>% as.data.frame()
 Y <- trainClass %>%  as.factor()
 
 # Creation of a randomised set of sample
@@ -78,21 +79,22 @@ test <- which(samp == 1)
 # rest will compose the training set
 train <- setdiff(1:nrow(X), test) 
 
-comp <- 5
+comp <- 45
 N_keppX <- rep(100, comp)
-MyResult.splsda <- splsda(X[train,], Y[train], ncomp = comp, keepX = N_keppX, near.zero.var = F)
-# plotIndiv(MyResult.splsda, ind.names = F)
-# auc.plsda <- auroc(MyResult.splsda)
+#splsda.model <- splsda(X[train,], Y[train], ncomp = comp, keepX = N_keppX, near.zero.var = F)
+splsda.model <- splsda(X[train,], Y[train], ncomp = comp, near.zero.var = T)
+# plotIndiv(splsda.model, ind.names = F)
+# auc.plsda <- auroc(splsda.model)
 
 # then predict
-test.predict <- predict(MyResult.splsda, X[test, ])
+test.predict <- predict(splsda.model, X[test, ])
 # store prediction for the 4th component
 prediction <- test.predict$class$mahalanobis.dist[,1]
 confusion.mat <- get.confusion_matrix(truth = Y[test], predicted = prediction)
 get.BER(confusion.mat)
 
 # Model Tuning 
-perf.plsda <- perf(MyResult.splsda, validation = "Mfold", folds = 5, 
+perf.plsda <- perf(splsda.model, validation = "Mfold", folds = 5, 
                    progressBar = TRUE, auc = TRUE, nrepeat = 5) 
 
 
@@ -100,10 +102,37 @@ perf.plsda <- perf(MyResult.splsda, validation = "Mfold", folds = 5,
 
 library(mixOmics)
 set.seed(123)
+tic("total")
+tic("data generation")
+# Creation of a randomised set of sample
+samp <- sample(1:3, nrow(X), replace = TRUE)
+# 1/3 of the data will compose the test set
+test <- which(samp == 1) 
+# rest will compose the training set
+train <- setdiff(1:nrow(X), test) 
+
 X <- map_dfc(pre.procd.data, `[[`, "Int.corrected" ) %>% as.matrix() %>% t() %>% as.data.frame()
 Y <- trainClass %>%  as.factor()
+toc()
 
-## ---- CV ---- ##
+tic("Model training")
+plsda.model <- plsda(X[train,], Y[train], ncomp = 3)
+perf.plsda <- perf(plsda.model, validation = "Mfold", folds = 5, 
+                         progressBar = T, auc = TRUE, nrepeat = 5) 
+plot(perf.plsda, col = color.mixo(5:7), sd = TRUE, legend.position = "horizontal")
+toc() #180seg
+
+tic("Evaluation")
+# then predict
+test.predict.plsda <- predict(plsda.model, X[test, ])
+# store prediction for the 4th component
+prediction.plsda <- test.predict.plsda$class$max.dist[,1]
+confusion.mat.plsda <- get.confusion_matrix(truth = Y[test], predicted = prediction.plsda)
+get.BER(confusion.mat.plsda)
+toc()
+toc()
+
+# ---- CV - REVISAR LUEGO ---- 
 plsda.CV.model <- plsda(X, Y, ncomp = 15)
 plotIndiv(srbct.plsda , comp = c(1,2),
           group = Y, ind.names = FALSE, 
@@ -119,24 +148,5 @@ prediction <- test.predict$class$mahalanobis.dist[,1]
 confusion.mat <- get.confusion_matrix(truth = Y, predicted = prediction)
 get.BER(confusion.mat)
 
-## ---- validation set ---- ##
-srbct.plsda <- plsda(X[train,], Y[train], ncomp = 25)
-test.predict <- predict(srbct.plsda, X[test, ])
-prediction <- test.predict$class$max.dist[,1]
-confusion.mat <- get.confusion_matrix(truth = Y[test], predicted = prediction)
-get.BER(confusion.mat)
 
-# New data_3
 
-load(file = "C:/Users/gomez/Documents/LIBS/Data/EMSLIBS - Contest/Data_3.RData")
-lista3 <- fun1(Data_3, rows = 20)
-data_pre3 <- lista3 %>% future_map(data.preprocessing)   
-rm(lista3, Data_3)
-spec_NoBL3 <- data_pre3 %>% future_map(BaseLine)
-X3 <- map_dfc(spec_NoBL3, `[[`, "Int.corrected" ) %>% as.matrix() %>% t() %>% as.data.frame()
-Y3 <- trainClass[4001:6000] %>%  as.factor()
-
-test.predict <- predict(srbct.plsda, X3)
-prediction <- test.predict$class$mahalanobis.dist[,20]
-confusion.mat <- get.confusion_matrix(truth = Y3, predicted = prediction)
-get.BER(confusion.mat)

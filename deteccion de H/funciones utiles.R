@@ -35,7 +35,3 @@ plot_mean_spec <- function(M, ppm){
 
 #plot_mean_spec(M_ARG_02_ppm, ppm = 2)
 
-
-# correcion de linea base ---------------------------------------------------------------------
-
- 

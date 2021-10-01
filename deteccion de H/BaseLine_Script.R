@@ -20,10 +20,10 @@ find.BL <- function(df, w){
 }
 
 BaseLine <- function(row1, w = 200){ # w es el ancho de la ventana
-        # repetir el primer y el utlimo valor de intensidad para suvizar los extremos
         df <- (data.frame(index = c(1:length(row1)), I = row1))
         # establece la ventana para cada linea de emision
         df <- df %>% mutate(J1 = index - w/2) %>% mutate(Jn = index + w/2)
+        # repetir el primer y el utlimo valor de intensidad para suvizar los extremos
         df$J1[which(df$J1 <= 0)] <- 1
         df$Jn[which(df$Jn >= length(df$Jn))] <- length(df$Jn)
         # encuentra minimo en la ventana
@@ -71,10 +71,26 @@ FUN.add.detect <- function(detectores, var){
         df
 }
 
-FUN.plot.comp <- function(df_I, df_new_I, n){
+FUN.plot.comp <- function(df_I, df_new_I, n = 1){
         A <- data.frame(Index = 1:length(df_I[n,]), Intensidad = as.numeric(df_I[n,]))
         B <- data.frame(Index = 1:length(df_new_I[n,]), Intensidad = as.numeric(df_new_I[n,]))
         ggplot(A,aes(Index, Intensidad)) +
                 geom_line() +
-                geom_line(data=B, colour='red') 
+                geom_line(data=B, colour='red')
 }
+
+
+FUN.plot.comp <- function(wave, df_I, df_new_I, n = 1){
+        if(length(as.numeric(df_I[n,])) == nrow(wave)){
+                A <- data.frame(wave, Intensidad = as.numeric(df_I[n,]))
+                B <- data.frame(wave, Intensidad = as.numeric(df_new_I[n,]))
+                g <- ggplot(A,aes(Wavelength, Intensidad)) +
+                        geom_line() +
+                        geom_line(data=B, colour='red')   
+                g
+        }else{
+                print(paste(length(as.numeric(df_I[n,])),' is different to ', nrow(wave)))
+        }
+}
+
+

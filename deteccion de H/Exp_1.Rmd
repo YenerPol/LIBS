@@ -1,0 +1,153 @@
+---
+title: "Modelo_1"
+author: "Paul Gomez"
+date: "8/29/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Introduccion
+
+Este modelo solo se desarrolla en el detector 2 dado que acá se encuentran los dos picos de hidrógeno que son claramente detectables **383.50** y **388.93.** Se realizara una pequeña exploración de los datos para definir los pasos de pre procesado mas apropiados.
+
+```{r, Lectura de datos, eval=TRUE, message=FALSE,echo=FALSE}
+library(readr)
+source('funciones utiles.R')
+
+data_path <- "./Data/Calibracion Zr2.5Nb - 4.53 J- 2.92us/"
+# 2ppm, 43ppm, 99ppm
+carpetas <- list('ARG-2','ARG-3','ARG-6')
+
+# Matriz con 40 espectros por muestra
+listaM <- lapply(carpetas, function(x){df_func(data_path, x)})
+
+# datos correspondientes al detector 2
+L_raw <- map(listaM, ~ .x %>% .[,2049:3983] %>%  data.frame() )
+names(L_raw) <- c("2ppm", "42ppm", "99ppm")
+
+# longitudes de onda
+wavelen <- read_tsv(file = paste(data_path, 'ARG-2/a1.ols', sep = '' ), skip = 6) %>% select(Wavelength) %>% rowid_to_column()
+
+wavelen <- wavelen[2049:3983,] 
+wavelen$Wavelength <- round(wavelen$Wavelength, 2)
+```
+
+## Exploración
+
+Principalmente se busca comparar datos sin normalizar vs normalizados, ademas se exploran los picos de H.
+
+Primero se creo el set de datos normalizados:
+
+```{r Normalizando datos , echo=FALSE}
+# funcion de normalizacion por suma total
+FUN.norm.spec <- function(row){
+        sum.total <- sum(row)
+        row <- row/sum.total
+        row
+}
+L_Norm <- map(L_raw, ~ .x %>% apply(1, FUN.norm.spec) %>% t() )
+```
+
+El primer paso de pre procesado de los datos se realizo en el apartado anterior y fue una normalizacion por suma total. Un segundo paso de normalizacion sera probar que pasa con los datos cuando promediamos un numero de espectros:
+
+names(lista.4a1) \<- c("2ppm", "42ppm", "99ppm")
+
+```{r Funcion para promediar espectros, echo=FALSE}
+# Funcion FUN.prom.4spec (script 'funciones utiles.R') promedia cuatro espectros
+# Input: matriz, 1 espectro por fila
+# Output: matriz, 1 espectro por fila
+df_4a1 <- map(L_Norm, ~ .x %>% FUN.prom.4spec() %>% rowid_to_column() , i = 4) %>% 
+        dplyr::bind_rows(.id = 'muestra')
+
+colnames(df_4a1) <- c('muestra','rowid', wavelen$Wavelength)
+
+H_lines <- data.frame(Ref = c("Linea H: 383.50", "Linea H: 388.83"),
+                      vals = c(383.50, 388.93),
+                      stringsAsFactors = FALSE)
+
+g <- df_4a1 %>%  
+        pivot_longer(cols = !muestra:rowid,
+                     names_to = "Wavelength",
+                     values_to = "Counts",
+                     names_transform = list(Wavelength = as.numeric)) %>% 
+        ggplot(aes(Wavelength, Counts, colour = muestra, group=rowid)) +
+        geom_line() + 
+        geom_vline(mapping = aes(xintercept = vals, colour = Ref),
+                   data = H_lines,
+                   show.legend = FALSE) 
+
+g %>% plotly::ggplotly()
+```
+
+## Explorando picos de H
+
+Las lineas de emision del Hidrogeno que caen dentro de este detector son **383.50** y **388.93.** Graficando :
+
+```{r grafico centrado en los picos de H}
+
+g <- df_4a1 %>%  
+        pivot_longer(cols = !muestra:rowid,
+                     names_to = "Wavelength",
+                     values_to = "Counts",
+                     names_transform = list(Wavelength = as.numeric)) %>% 
+        ggplot(aes(Wavelength, Counts, colour = muestra, group=rowid)) +
+        geom_line() + 
+        geom_vline(mapping = aes(xintercept = vals, colour = Ref),
+                   data = H_lines,
+                   show.legend = FALSE) +
+        scale_x_continuous(limits = c(380, 391)) +
+        scale_y_continuous(limits = c(0,0.001))
+
+g %>% plotly::ggplotly()
+```
+
+## Removiendo Linea Base
+
+Para remover la linea base se utiliza método descrito en Ref 5. En este metodo el unico parametro a suministrar es el ancho de la ventana 'w'.
+
+```{r}
+source("Baseline_Script.R")
+
+L_Norm <- map(L_Norm, ~ .x %>% apply(1, BaseLine, w= 50) )
+# lista de tres elementos:
+# Primer nivel: 
+#       - muestra 
+# Segundo nivel: 
+#       - lista de 4 vectores por cada espectro 
+#               - I, Int.corrected, Bi, Min 
+L_Norm[[1]] %>% plot.comparison() %>% plotly::ggplotly()
+```
+
+```{r, Picos H}
+# seleccionar de c/muestra y c/espectro  la columna 'Int.corrected' 
+L <- L_Norm %>% map(~.x %>% 
+                        map_dfc(~.x %>% 
+                                        select('Int.corrected')) %>%
+                                        t(),
+                                .x )
+        
+df <- L %>% map(~.x %>% 
+                     as.data.frame() %>% 
+                     rowid_to_column()) %>% 
+        dplyr::bind_rows(.id = 'muestra')
+
+colnames(df) <- c('muestra','rowid', wavelen$Wavelength)
+
+df %>%  
+        pivot_longer(cols = !muestra:rowid,
+                     names_to = "Wavelength",
+                     values_to = "Counts",
+                     names_prefix = "V",
+                     names_transform = list(Wavelength = as.numeric)) %>% 
+        ggplot(aes(Wavelength, Counts, colour = muestra, group=rowid)) +
+        geom_line() + 
+        geom_vline(mapping = aes(xintercept = vals, colour = Ref),
+                   data = H_lines,
+                   show.legend = FALSE)  +
+        scale_x_continuous(limits = c(380, 391)) +
+        scale_y_continuous(limits = c(0,0.001))
+
+```

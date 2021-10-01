@@ -1,0 +1,219 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r, setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Introduccion
+
+A continuación se realiza un análisis exploratorio de los datos suministrados correspondientes a aleación Zr2.5Nb, la cuales fueron hidruradas para finalmente obtener muestras conteniendo concentraciones de H de 2ppm, 23ppm, 42ppm, 79ppm, 99ppm. `Que exactitud tiene esta medida?`. Los datos corresponden a 140 espectros para cada muestra, y están divididos en dos grupos, el primero de 40 y el segundo de 100, tomados en días diferentes. `¿existe información importante que varia de día a día?`
+
+## Lectura de Datos
+
+```{r Lectura de datos, message=FALSE, echo=TRUE}
+library(tidyverse)
+source('./funciones utiles.R')
+source('./Funciones_Prepocesado.R')
+
+data.path<- list(dia1 = "./Data/Calibracion Zr2.5Nb - 4.53 J- 2.92us/", 
+                 dia2 = "./Data/new data/")
+carpetas <- list('ARG-2','ARG-4','ARG-3','ARG-5','ARG-6')
+data <- vector(mode = 'list', length = 2)
+
+data[[1]] <- lapply(carpetas, function(x){df_func(data.path[[1]], x, 40)})
+data[[2]] <- lapply(carpetas, function(x){df_func(data.path[[2]], x, 100)})
+
+wavelen <- read_tsv(file = paste(data.path[[1]], 'ARG-2/a1.ols', sep = '' ), 
+                    skip = 6) %>% 
+                select(Wavelength) %>% 
+                rowid_to_column()
+```
+
+### Espectro promedio para la muestra 99ppm, datos dia 1.
+
+```{r espectro promedio, echo=FALSE}
+espec.prom <- data %>% map(~ sapply(.x, function(x){apply(x, 2, mean)}) %>% t() )
+```
+
+```{r grafico de inspeccion, echo=FALSE}
+data.frame(Wavelength = wavelen$Wavelength, Counts = espec.prom[[1]][5,]) %>% 
+        ggplot(aes(Wavelength, Counts)) + 
+        geom_line() 
+```
+
+## Picos de H
+
+No vale la pena graficar los 5 espectros promedio en la misma gráfica, así que se exploran por separado los picos de hidrógeno :
+
+```{r datos para graficos, echo=FALSE}
+temp <- espec.prom[[1]] %>% t()
+temp.d1 <- cbind(wavelen, temp)
+temp <- espec.prom[[2]] %>% t()
+temp.d2 <- cbind(wavelen, temp)
+names(temp.d1) <- c('Index', 'Wavelength', '2ppm', 
+                    '23ppm', '42ppm', '79ppm', '99ppm')
+names(temp.d2) <- c('Index', 'Wavelength', '2ppm', 
+                    '23ppm', '42ppm', '79ppm', '99ppm')
+        
+# para hacer arreglos de los graficos
+library(patchwork)
+        
+# funcion para graficar ventana centrada en la longitud de onda seleccionada
+plot_pico <- function(df, H.peak, tittle, limites){
+        peak.data <-  df[(df$Wavelength > (H.peak-1)) & 
+                         (df$Wavelength < (H.peak+1)), ]
+        g <- peak.data %>% 
+                pivot_longer(`2ppm`:`99ppm`,
+                             names_to = "muestra", 
+                             values_to = "counts") %>% 
+                ggplot(aes(Wavelength, counts, colour = muestra)) +
+                geom_line() +
+                geom_vline(xintercept = H.peak) + 
+                ggtitle(tittle) + ylim(limites)
+                
+        g
+}
+```
+
+#### Pico 383.65nm
+
+```{r pico 383.65, echo=FALSE}
+g1 <- plot_pico(temp.d1, 383.65, "Datos dia 1", limites = c(0,700))
+g2 <- plot_pico(temp.d2, 383.65, "Datos dia 2", limites = c(0,700))
+g1 + g2
+```
+
+#### Pico 389nm
+
+```{r pico 389, echo=FALSE}
+g1 <- plot_pico(temp.d1, 389, "Dia 1", limites = c(0,700))
+g2 <- plot_pico(temp.d2, 389, "Dia 2", limites = c(0,700))
+g1 + g2
+```
+
+#### Pico 397.1nm
+
+```{r pico 397.1, echo=FALSE}
+g1 <- plot_pico(temp.d1, 397.1, "Dia 1", limites = c(0,700))
+g2 <- plot_pico(temp.d2, 397.1, "Dia 2", limites = c(0,700))
+g1 + g2
+```
+
+#### Pico 410.3nm
+
+```{r pico 410.3, echo=FALSE}
+g1 <- plot_pico(temp.d1, 410.3, "Dia 1", limites = c(0,700))
+g2 <- plot_pico(temp.d2, 410.3, "Dia 2", limites = c(0,700))
+g1 + g2
+```
+
+#### Pico 434.15nm
+
+```{r 434.15, echo=FALSE}
+g1 <- plot_pico(temp.d1, 434.15, "Dia 1", limites = c(0,700))
+g2 <- plot_pico(temp.d2, 434.15, "Dia 2", limites = c(0,700))
+g1 + g2
+```
+
+#### Pico 486.25nm
+
+```{r pico 486.25, echo=FALSE}
+g1 <- plot_pico(temp.d1, 486.25, "Dia 1", limites = c(0,700))
+g2 <- plot_pico(temp.d2, 486.25, "Dia 2", limites = c(0,700))
+g1 + g2
+```
+
+Se observa un comportamiento extraño en las observaciones; la muestra de 99ppm es la mas alta el primer día, pero, pasa a ser la mas baja en las mediciones del día 2. ¿Por que?
+
+Aparentemente los 'mejores picos de H', los que deberían apreciarse en el detector numero 3, no se manifiestan claramente. ¿Para una primera aproximación convendría trabajar solo con datos del detector 2 que es en donde se ve la primera linea de H perfectamente diferenciada?
+
+## Inspección de los picos de H normalizando los datos
+
+En este apartado se repite el mismo análisis exploratorio con la diferencia de que se normalizan los espectros por suma total y se sustrae la linea base.
+
+```{r Normalizacion and BL correction}
+source('./BaseLine_Script.R')
+
+data.Norm <- data %>% 
+        # En este bloque se realiza normalizacion por suma total 
+        map(~ .x %>% map(~ apply(.x, 1, FUN.norm.spec) %>% t() )) %>% 
+        # En este bloque se sustrae la linea Base 
+        map( ~ .x %>% map(FUN.BL.detec, W = 100))
+
+old.spec <- data.Norm %>% 
+        map(~.x %>% map(FUN.add.detect, 'I'))
+new.spec <- data.Norm %>% 
+        map(~.x %>% map(FUN.add.detect, 'Int.corrected'))
+```
+
+#### Comparacion de espectro normalizado antes y despues de sustraer linea base
+
+```{r plot BL, echo=TRUE}
+FUN.plot.comp(wavelen, old.spec[[1]][[1]], new.spec[[1]][[1]], n = 1)
+```
+
+#### Pico 383.65nm
+
+```{r, echo=FALSE}
+espec.prom <- new.spec %>% 
+        map(~ sapply(.x, function(x){apply(x, 2, mean)}) %>% t() )
+temp <- espec.prom[[1]] %>% t()
+temp.d1 <- cbind(wavelen, temp)
+temp <- espec.prom[[2]] %>% t()
+temp.d2 <- cbind(wavelen, temp)
+names(temp.d1) <- c('Index', 'Wavelength', '2ppm', 
+                    '23ppm', '42ppm', '79ppm', '99ppm')
+names(temp.d2) <- c('Index', 'Wavelength', '2ppm', 
+                    '23ppm', '42ppm', '79ppm', '99ppm')
+```
+
+```{r, echo=FALSE}
+g1 <- plot_pico(temp.d1, 383.65, "Dia 1", limites = c(0, 4e-4))
+g2 <- plot_pico(temp.d2, 383.65, "Dia 2", limites = c(0, 4e-4))
+g1+g2
+```
+
+#### Pico 389nm
+
+```{r, echo=FALSE}
+g1 <- plot_pico(temp.d1, 389, "Dia 1", limites = c(0, 1.25e-4))
+g2 <- plot_pico(temp.d2, 389, "Dia 2", limites = c(0, 1.25e-4))
+g1+g2
+```
+
+#### Pico 397.1nm
+
+```{r, echo=FALSE}
+g1 <- plot_pico(temp.d1, 397.1, "Dia 1",limites = c(0.000, 0.0001))
+g2 <- plot_pico(temp.d2, 397.1, "Dia 2",limites = c(0.000, 0.0001))
+g1+g2
+```
+
+#### Pico 410.3nm
+
+```{r, echo=FALSE}
+g1 <- plot_pico(temp.d1, 410.3, "Dia 1", limites = c(0.000, 0.00005))
+g2 <- plot_pico(temp.d2, 410.3, "Dia 2", limites = c(0.000, 0.00005))
+g1+g2
+```
+
+#### PIco 434.15nm
+
+```{r, echo=FALSE}
+g1 <- plot_pico(temp.d1, 434.15, "Dia 1", limites = c(0.000, 0.00015))
+g2 <- plot_pico(temp.d2, 434.15, "Dia 2", limites = c(0.000, 0.00015))
+g1+g2
+```
+
+#### Pico 485.25
+
+```{r, echo=FALSE}
+g1 <- plot_pico(temp.d1, 486.25, "Dia 1", limites = c(0.000, 0.000025))
+g2 <- plot_pico(temp.d2, 486.25, "Dia 2", limites = c(0.000, 0.000025))
+g1+g2
+```

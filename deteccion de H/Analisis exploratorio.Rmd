@@ -154,7 +154,15 @@ new.spec <- data.Norm %>%
 #### Comparacion de espectro normalizado antes y despues de sustraer linea base
 
 ```{r plot BL, echo=TRUE}
-FUN.plot.comp(wavelen, old.spec[[1]][[1]], new.spec[[1]][[1]], n = 1)
+g <- FUN.plot.comp(wavelen, old.spec[[1]][[1]], new.spec[[1]][[1]], n = 1)
+g
+```
+
+En la siguiente imagen se observa la posición de las longitudes de onda correspondientes a los picos de H (lineas azules). La rutina de remoción de la linea base no funciona bien para los extremos de los detectores, en la linea numero 2 (de izquierda a derecha) se observa que el supuesto pico de H queda perturbado por este motivo. \`CORREGIR ESTO\`
+
+```{r picos H}
+g + geom_vline(xintercept = c(383,389,397,410,434,485), colour = 'blue') +
+        coord_cartesian(xlim = c(365,500), ylim = c(0, 0.0006))
 ```
 
 #### Pico 383.65nm

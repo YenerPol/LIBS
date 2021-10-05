@@ -40,8 +40,7 @@ FUN.random <- function(M){
         size <- nrow(M)
         index <- sample(seq_len(size), size = size)
         M <- M[index,]
-        M
-}
+        M }
 
 listaM.1 <- map(listaM.1, FUN.random)
 listaM.2 <- map(listaM.2, FUN.random)
@@ -88,7 +87,6 @@ BL <- L.1 %>%
         bind_rows()
 
 # Ajuste visual de Z
-
 z <- 1.25
 
 g <- tibble(I = I_raw$`99`, Base = BL$`99`*z) %>% 
@@ -96,7 +94,6 @@ g <- tibble(I = I_raw$`99`, Base = BL$`99`*z) %>%
         ggplot(aes(rowid, I)) + 
         geom_line() +
         geom_line(aes(rowid, Base), colour = 'red')
-
 g %>% plotly::ggplotly()
 
 # z = 1.25 a 1.20 parece un buen valor para detector 2
@@ -207,7 +204,6 @@ print(model_path)
 model_path <- "C:\\Users\\gomez\\Documents\\LIBS\\Outputs\\DeepLearning_grid__2_AutoML_20211001_172201_model_31"
 saved_model <- h2o.loadModel(model_path)
 
-
 # AutoML Regression ------------------------------------------------------
 set.seed(123)
 
@@ -224,7 +220,6 @@ train$class <- as.numeric(train$class)
 val$class <- as.numeric(val$class) 
 test$class <- as.numeric(test$class) 
 
-
 library(h2o)
 h2o.init(nthreads = 4)
 
@@ -233,7 +228,6 @@ h2o.init(nthreads = 4)
 train <- as.h2o(train)
 val <- as.h2o(val)
 test <- as.h2o(test)
-
 
 # Set variable names
 y <- "class"
@@ -272,7 +266,6 @@ error <- data.frame(real.ppm, mdl1.ppm, mdl2.ppm, mdl3.ppm) %>%
         mutate(diff2 = (class - predict.1)) %>% 
         mutate(diff3 = (class - predict.2))
 
-
 error %>% map(summary)
 
 # save the model
@@ -282,7 +275,6 @@ model_path_2 <- h2o.saveModel(object = mdl2, path = "./outputs", force = TRUE)
 # "C:\\Users\\gomez\\Documents\\LIBS\\deteccion de H\\outputs\\DeepLearning_grid__3_AutoML_20211004_154141_model_3"
 model_path_3 <- h2o.saveModel(object = mdl3, path = "./outputs", force = TRUE)
 # "C:\\Users\\gomez\\Documents\\LIBS\\deteccion de H\\outputs\\DeepLearning_grid__2_AutoML_20211004_154141_model_8"
-
 
 saved_model <- h2o.loadModel(model_path)
 

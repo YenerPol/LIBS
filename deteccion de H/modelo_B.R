@@ -7,8 +7,8 @@
 #       - desplazar la linea base para seleccionar picos
 #
 # Datos: 
-#       - dia 1: 40 espectros pasan a 13. train: 9, val: 2, test: 2.
-#       - dia 2: 100 espectros pasan a 33. train: 25, val: 4, test: 4.
+#       - dia 1: 40 espectros pasan a 13.  train: 0,  val: 6, test: 7.
+#       - dia 2: 100 espectros pasan a 33. train: 25, val: 0, test: 8.
 #       
 # librerias -----------------------------------------------------------------------------------
 
@@ -120,9 +120,9 @@ df_temp <- I_new.1 %>% select(V1:V645)
 df_temp <- df_temp[,indices$index]
 
 data.1 <- data.frame(class = I_new.1$class, df_temp ) # 13 * 5 = 65 rows
-data.1.train <- data.1[rep(c(rep(TRUE,9), rep(FALSE,2), rep(FALSE,2)),5),]
-data.1.val <-   data.1[rep(c(rep(FALSE,9), rep(TRUE,2), rep(FALSE,2)),5),]
-data.1.test <-  data.1[rep(c(rep(FALSE,9), rep(FALSE,2), rep(TRUE,2)),5),]
+#data.1.train <- data.1[rep(c(rep(,0), rep(FALSE,6), rep(FALSE,7)),5),]
+data.1.val <-   data.1[rep(c(rep(TRUE,6), rep(FALSE,7)),5),]
+data.1.test <-  data.1[rep(c(rep(FALSE,6), rep(TRUE,7)),5),]
 
 ###
 
@@ -136,25 +136,24 @@ df_temp <- I_new.2 %>% select(V1:V645)
 df_temp <- df_temp[,indices$index]
 
 data.2 <- data.frame(class = I_new.2$class, df_temp )
-data.2.train <- data.2[rep(c(rep(TRUE,25), rep(FALSE,4), rep(FALSE,4)),5),]
-data.2.val <-   data.2[rep(c(rep(FALSE,25), rep(TRUE,4), rep(FALSE,4)),5),]
-data.2.test <-  data.2[rep(c(rep(FALSE,25), rep(FALSE,4), rep(TRUE,4)),5),]
+data.2.train <- data.2[rep(c(rep(TRUE,25), rep(FALSE,8)),5),]
+data.2.test <-  data.2[rep(c(rep(FALSE,25), rep(TRUE,8)),5),]
 
 # Uniendo los datos
-train <- rbind(data.1.train,data.2.train)
-val <- rbind(data.1.val, data.2.val)
+train <- data.2.train
+val <- data.1.val
 test <- rbind(data.1.test,data.2.test) 
 
 rm(list= ls()[!(ls() %in% c('train','val','test'))])
 
-save(train, val, test, file = './Data/Data_modelo_A.RData')
+save(train, val, test, file = './Data/Data_modelo_B.RData')
 # AutoML clasificacion ------------------------------------------------------
 set.seed(123)
 
 # distribucion aleatoria de las observaciones (rows)
 train <- train[sample(1:nrow(train)), ]
 val <- val[sample(1:nrow(val)), ]
-        
+
 table(train$class)
 table(test$class)
 table(test$class)
@@ -180,30 +179,48 @@ x <- setdiff(names(train), y)
 # You can force Deep Learning by excluding the other algorithms with exclude_algos parameter
 models <- h2o.automl(x, y, 
                      training_frame = train, 
-                     validation_frame = test, 
-                     leaderboard_frame = test,
+                     validation_frame = val, 
+                     leaderboard_frame = val,
                      stopping_metric = "misclassification",
                      seed = 12345, 
-                     include_algos = c("GLM", "DeepLearning", "DRF"))
+                     include_algos = c("DeepLearning"))
 
 # Chossing the best model (relative to the stopping metric)
 best_model.C <- models@leader
-show(best_model)
+show(best_model.C)
 
 # Prepare new data and forecasting
-predictions <- h2o.predict(best_model, val)
-show(predictions)
-
-real.class <- as.data.frame(val[,'class']) 
+predictions <- h2o.predict(best_model.C, test)
+real.class <- as.data.frame(test[,'class']) 
 pred.class <- as.data.frame(predictions)
+df <- data.frame(real.class,pred.class[,'predict'])
+names(df) <- c('real','predicted')
 
-sum(real.class$class != pred.class$predict) # Solo 1 mal!!!
+mean((as.numeric(real.class$class) == as.numeric(pred.class$predict))) # 0.78!!!
+
+# Que pasa si separo el test set por dia? cual es el error para cada dia?
+Resul.d1 <- df[1:35,]
+Resul.d2 <- df[36:75,]
+
+mean(Resul.d1$real  ==  Resul.d1$predicted)     # 0.6
+mean(Resul.d2$real  ==  Resul.d2$predicted)     # 0.95
+
+# separando por dia y por muestra
+Resul.d1 %>% 
+        mutate(error = real == predicted) %>%
+        group_by(real) %>% 
+        summarise(mean = mean(error))
+
+Resul.d2 %>% 
+        mutate(error = real == predicted) %>%
+        group_by(real) %>% 
+        summarise(mean = mean(error))
 
 # save the model
-model_path <- h2o.saveModel(object = best_model, path = "./outputs", force = TRUE)
+model_path <- h2o.saveModel(object = best_model.C, path = "./outputs")
 print(model_path)
 # load the model
-model_path <- "C:\\Users\\gomez\\Documents\\LIBS\\Outputs\\DeepLearning_grid__2_AutoML_20211001_172201_model_31"
+model_path <- "C:\\Users\\gomez\\Documents\\LIBS\\deteccion de H\\outputs\\DeepLearning_grid__3_AutoML_20211005_201843_model_3"
 saved_model <- h2o.loadModel(model_path)
 
 # AutoML Regression ------------------------------------------------------
@@ -243,7 +260,7 @@ models <- h2o.automl(x, y,
                      leaderboard_frame = val,
                      stopping_metric = "deviance",
                      seed = 12345, 
-                     include_algos = c("GLM", "DeepLearning"))
+                     include_algos = c("DeepLearning"))
 
 lb <- h2o.get_leaderboard(object = models, extra_columns = "ALL")
 lb <- lb %>% as.data.frame()
@@ -252,11 +269,6 @@ lb <- lb %>% as.data.frame()
 mdl1 <- models@leader
 mdl2 <- h2o.getModel(lb$model_id[2])
 mdl3 <- h2o.getModel(lb$model_id[3])
-
-show(best_model)
-
-predictions <- h2o.predict(best_model, test)
-show(predictions)
 
 real.ppm <- as.data.frame(test[,'class']) 
 mdl1.ppm <- as.data.frame(h2o.predict(mdl1, test))
@@ -271,12 +283,12 @@ error <- data.frame(real.ppm, mdl1.ppm, mdl2.ppm, mdl3.ppm) %>%
 error %>% map(summary)
 
 # save the model
-model_path_1 <- h2o.saveModel(object = mdl1, path = "./outputs", force = TRUE) 
-# "C:\\Users\\gomez\\Documents\\LIBS\\deteccion de H\\outputs\\DeepLearning_grid__3_AutoML_20211004_154141_model_8"
-model_path_2 <- h2o.saveModel(object = mdl2, path = "./outputs", force = TRUE)
-# "C:\\Users\\gomez\\Documents\\LIBS\\deteccion de H\\outputs\\DeepLearning_grid__3_AutoML_20211004_154141_model_3"
-model_path_3 <- h2o.saveModel(object = mdl3, path = "./outputs", force = TRUE)
-# "C:\\Users\\gomez\\Documents\\LIBS\\deteccion de H\\outputs\\DeepLearning_grid__2_AutoML_20211004_154141_model_8"
+model_path_1 <- h2o.saveModel(object = mdl1, path = "./outputs/model_B", force = TRUE) 
+# "C:\\Users\\gomez\\Documents\\LIBS\\deteccion de H\\outputs\\model_B\\DeepLearning_grid__1_AutoML_20211005_222413_model_6"
+model_path_2 <- h2o.saveModel(object = mdl2, path = "./outputs/model_B", force = TRUE)
+# "C:\\Users\\gomez\\Documents\\LIBS\\deteccion de H\\outputs\\model_B\\DeepLearning_grid__1_AutoML_20211005_222413_model_7"
+model_path_3 <- h2o.saveModel(object = mdl3, path = "./outputs/model_B", force = TRUE)
+# "C:\\Users\\gomez\\Documents\\LIBS\\deteccion de H\\outputs\\model_B\\DeepLearning_grid__1_AutoML_20211005_222413_model_10"
 
 saved_model <- h2o.loadModel(model_path)
 

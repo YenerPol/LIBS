@@ -119,10 +119,6 @@ df_temp <- I_new.1 %>% select(V1:V645)
 df_temp <- df_temp[,indices$index]
 
 data.1 <- data.frame(class = I_new.1$class, df_temp ) # 13 * 5 = 65 rows
-#data.1.train <- data.1[rep(c(rep(,0), rep(FALSE,6), rep(FALSE,7)),5),]
-data.1.test <-  data.1
-
-###
 
 I_new.2 <- L.2 %>% 
         # seleccionar de c/muestra y c/espectro  la columna 'Int.corrected' 
@@ -134,6 +130,9 @@ df_temp <- I_new.2 %>% select(V1:V645)
 df_temp <- df_temp[,indices$index]
 
 data.2 <- data.frame(class = I_new.2$class, df_temp )
+
+data.1.test <-  data.1
+
 data.2.train <- data.2[rep(c(rep(TRUE,25), rep(FALSE,4), rep(FALSE,4)),5),]
 data.2.val <- data.2[rep(c(rep(FALSE,25), rep(TRUE,4), rep(FALSE,4)),5),]
 data.2.test <-  data.2[rep(c(rep(FALSE,25), rep(FALSE,4), rep(TRUE,4)),5),]

@@ -6,23 +6,220 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
 ```
 
-## Introduccion
+## Analisis exploratorio
 
+Pequeño y feo informe en [RPubs](www.rstudio.com).
 
+## Preprocesado
+
+Fueron suministrados dos conjuntos de datos:
+
+-   Datos dia 1: 40 espectros por muestra. (40 \* 5 = 200 espectros)
+
+-   Datos dia 2: 100 espectros por muestra. ( 100 \* 5 = 500 espectros)
+
+Los conjuntos se mantendrán separados (la razón se explica mas adelante) y se realizan los siguientes pasos de pre procesado:
+
+-   **Promediar 3 espectros:** Con esto se intenta disminuir la dispersión en las observaciones, sin embargo, hay que tener en cuenta que el numero de observaciones se reduce a 1/3 del tamaño original, pasando de 40 a 13, y de 100 a 33, para cada muestra.
+-   Según lo observado en el análisis exploratorio, solo se usaron datos del **detector numero 2.**
+-   **Normalizar espectros por suma total:** [Referencia: Impact of Laser-Induced Breakdown Spectroscopy data normalization on multivariate classification accuracy](https://pubs.rsc.org/en/content/articlelanding/2017/ja/c6ja00322b)
+
+```{r libraries}
+# librerias usadas
+library(tidyverse)      # para manipulaciond de los datos
+#setwd('./deteccion de H/')
+source('./funciones utiles.R')
+source('./BaseLine_Script.R')
+source('./Funciones_Prepocesado.R')
+```
+
+```{r Lectura de datos, echo=TRUE}
+data_path_1 <- "./Data/Calibracion Zr2.5Nb - 4.53 J- 2.92us/"
+data_path_2 <- "./Data/new data/"
+
+carpetas <- list('ARG-2','ARG-4','ARG-3','ARG-5','ARG-6')
+
+# Matriz con 40 espectros por muestra
+listaM.1 <- lapply(carpetas, function(x){df_func(data_path_1, x, 40)})
+listaM.2 <- lapply(carpetas, function(x){df_func(data_path_2, x, 100)})
+
+# datos correspondientes al detector 2
+listaM.1 <- map(listaM.1, ~ .x %>% .[,2049:3983] %>%  data.frame() )
+listaM.2 <- map(listaM.2, ~ .x %>% .[,2049:3983] %>%  data.frame() )
+
+names(listaM.1) <- c("2", "23", "42","79","99")
+names(listaM.2) <- c("2", "23", "42","79","99")
+
+rm(carpetas, data_path_1, data_path_2)
+```
+
+```{r preprocesado de datos}
+# Función para reordenar los datos de forma aleatoria
+FUN.random <- function(M){
+        size <- nrow(M)
+        index <- sample(seq_len(size), size = size)
+        M <- M[index,]
+        M }
+
+listaM.1 <- map(listaM.1, FUN.random)
+listaM.2 <- map(listaM.2, FUN.random)
+
+# Promediar 3 espectros, ahora tenemos 33 y 13
+listaM.1 <- map(listaM.1, FUN.prom.4spec, i=3)
+listaM.2 <- map(listaM.2, FUN.prom.4spec, i=3)
+
+# Normalizacion por suma total 
+listaM.1 <- map(listaM.1, ~ apply(.x, 1, FUN.norm.spec) %>% t() )
+listaM.2 <- map(listaM.2, ~ apply(.x, 1, FUN.norm.spec) %>% t() )
+```
+
+Finalmente **se sumaron 3 longitudes de onda con el** objetivo de disminuir la cantidad de variables que describen a cada observación. Se disminuyen las características a 1/3 del numero original, esto es importante dado que cada observación (espectro) tiene un numero elevado de características si se compara con el numero de observaciones disponibles.
+
+```{r sumar 3 longitudes}
+listaM.1 <- map(listaM.1, ~ apply(.x, 1, FUN.sum.long, n = ncol(.x)/3 ) %>% t() )
+listaM.2 <- map(listaM.2, ~ apply(.x, 1, FUN.sum.long, n = ncol(.x)/3 ) %>% t() )
+```
+
+-   **Sustracción de la linea base:** [Referencias: Influence of baseline subtraction on laser-induced breakdown spectroscopic data](https://pubs.rsc.org/en/content/articlelanding/2018/ja/c8ja00209f). [Metodo utilizado para hallar linea base](https://www.sciencedirect.com/science/article/abs/pii/S0584854714001244)
+
+```{r Linea Base dia 1}
+L.1 <- map(listaM.1, ~ .x %>% apply(1, BaseLine, w= 25) )
+L.1[[1]] %>% plot.comparison() #%>% plotly::ggplotly()
+```
+
+```{r Linea Base dia 2}
+L.2 <- map(listaM.2, ~ .x %>% apply(1, BaseLine, w= 25) )
+L.2[[1]] %>% plot.comparison() #%>% plotly::ggplotly()
+```
+
+El objetivo general de este modelado, como en cualquier otro problema de Machine Learning, es la **generalización**; en el mejor de los casos un modelo entrenado con los datos del día 2 (dado que es conjunto de mayor tamaño), aproximaría correctamente los datos del día 1, tanto en un problema de regresión como de clasificación. Por esta razón se mantendrán separados los datos del día 1 y día 2.
+
+Todo el código del preprocesado (y los modelos) esta en mi repositorio de [GitHub](https://github.com/YenerPol/LIBS/tree/master/deteccion%20de%20H)
+
+## Creación de predictores
+
+Se ajusto visualmente un limite para la selección de longitudes de onda de interés.
+
+```{r}
+I_raw <- L.1 %>% 
+        # seleccionar de c/muestra y c/espectro  la columna 'I' 
+        map(~.x %>% map_dfc(~.x %>% select('I')) %>% t(), .x ) %>% 
+        # Promediar para cada muestra
+        map(~ apply(.x, 2, mean)) %>% 
+        # Todo a un solo dataframe
+        bind_rows()
+
+BL <- L.1 %>% 
+        # seleccionar de c/muestra y c/espectro  la columna 'Int.corrected' 
+        map(~.x %>% map_dfc(~.x %>% select('Bi')) %>% t(), .x ) %>% 
+        # Promediar para cada muestra
+        map(~ apply(.x, 2, mean)) %>% 
+        # Todo a un solo dataframe
+        bind_rows()
+
+# Ajuste visual de Z
+z <- 1.25
+
+g <- tibble(I = I_raw$`99`, Base = BL$`99`*z) %>% 
+        rowid_to_column() %>% 
+        ggplot(aes(rowid, I)) + 
+        geom_line() +
+        geom_line(aes(rowid, Base), colour = 'red') 
+g
+```
+
+Gráficamente, todos los puntos que sobrepasen la linea roja son las nuevas características que describen el espectro. (Seria lo mismo pasar una linea recta sobre el espectro ya corregido, pero en fases previas usé este código para ver si era necesario sustraer la linea base, así que quedo así, luego se corregirá)
+
+**\*OJO el desplazamiento de esta linea es un posible parámetro a tunear en futuros modelos**
+
+Este procedimiento se aplica para un espectro promedio de cada muestra, 2ppm, 23ppm, 42ppm, 79ppm, 99ppm; con esto se generan características que lo describen y que no son necesariamente las mismas para cada muestra:
+
+```{r seleccion de caracteristicas}
+BL.z <- BL * z
+indices <- I_raw > BL.z
+colnames(indices) <- c('a','b','c','d','f')
+indices <- indices %>% as.data.frame() %>% mutate(index = ifelse((a == TRUE) | (b  == TRUE) | (c  == TRUE) | (d  == TRUE) | (f  == TRUE), TRUE, FALSE)) 
+```
+
+Para la muestra de 2ppm se obtienen asi `r sum(indices$a)`, para la muestra de 23ppm se obtienen `r sum(indices$b)`, para la muestra de 42ppm se obtienen `r sum(indices$c)`, para la muestra de 79ppm se obtienen `r sum(indices$d)` y para la muestra de 99ppm se obtienen `r sum(indices$f)`. Finalmente, al unir los indices que describen a cada muestra se obtienen un total de `r sum(indices$index)` caracteristicas de interes (predictores).
+
+Finalmente, seleccionamos las caracteristicas de interés:
+
+```{r}
+# Seleccionando características de interés
+I_new.1 <- L.1 %>% 
+        # seleccionar de c/muestra y c/espectro  la columna 'Int.corrected' 
+        map(~.x %>% map_dfc(~.x %>% select('Int.corrected')) %>% t(), .x ) %>% 
+        map(~.x %>% as.data.frame()) %>% 
+        bind_rows(.id = 'class')
+
+df_temp <- I_new.1 %>% select(V1:V645)
+df_temp <- df_temp[,indices$index]
+
+data.1 <- data.frame(class = I_new.1$class, df_temp ) # 13 * 5 = 65 rows
+
+I_new.2 <- L.2 %>% 
+        # seleccionar de c/muestra y c/espectro  la columna 'Int.corrected' 
+        map(~.x %>% map_dfc(~.x %>% select('Int.corrected')) %>% t(), .x ) %>% 
+        map(~.x %>% as.data.frame()) %>% 
+        bind_rows(.id = 'class')
+
+df_temp <- I_new.2 %>% select(V1:V645)
+df_temp <- df_temp[,indices$index]
+
+data.2 <- data.frame(class = I_new.2$class, df_temp )
+```
+
+Para el dia 1 se cuenta con `r dim(data.1)[1]` observaciones y su distribucion es:
+
+```{r, echo=FALSE}
+table(data.1$class)
+```
+
+Para el dia 2 se cuenta con `r dim(data.2)[1]` observaciones y su distribucion es:
+
+```{r, echo=FALSE}
+table(data.2$class)
+```
+
+Estos son los datos que posteriormente se distribuirán en los tres conjuntos llamados train, val y test.
+
+```{r, echo=FALSE}
+rm(list= ls())
+```
+
+## Modelado
+
+El modelado se centra en el uso de redes neuronales (de tipo Feed Forward Neural Network), pero se contempla experimentar con otros métodos, así como distintos tipos de pre procesados (en curso). Se presentan 3 modelos que comparten los mismos pasos de pre procesamiento de los datos antes mencionados.
+
+Es practica común dividir los datos en en dos grupos un "train set" y un "test set" (80% y 20% respectivamente). Para aumentar la probabilidad de generalizar correctamente, dada.. bueno... la confiabilidad en la situación del LIBS, los datos se dividieron en 3 sets; *train (74%), validation (13%) y test (13%).* El modelo se entreno usando el *test set* y se optimizo internamiente utilizando [Cross Validation](https://en.wikipedia.org/wiki/Cross-validation_(statistics)). Sin embargo, los modelos obtenidos se eligieron en función a su desempeño con el **validation set** y no a su desempeño en el paso de **Cross Validation** ya que se corre el riesgo de memorizar los datos de entrada y alejarnos de la generalización.
+
+Para la optimizacion de los hiperparametros se utilizo [random grid search](https://analyticsindiamag.com/why-is-random-search-better-than-grid-search-for-machine-learning/). 
+
+### Modelo 1
+
+Este modelo plantea el escenario ideal en el que se toman datos en un día cualquiera, se entrena un modelo, y luego se evalúa en un nuevo set de datos.
+
+La distribución de los datos fue la siguiente:
+
+- Datos dia 1: Total (por muestra) = 13 -> Train = 0, validation = 0, test = 13
+- Datos dia 2: Total (por muestra) = 33 -> Train = 25, validation = 4, test = 4
+
+El codigo esta en mi [repo](https://github.com/YenerPol/LIBS/blob/master/deteccion%20de%20H/modelo_C.R), aca se cargan directamente el mejor modelo y se evalua su desempeño en el test set. 
 
 ```{r cars}
-summary(cars)
+load(file = './Data/Data_modelo_C.RData')
+
+library(h2o)    # Libreria de machine learning        
+h2o.init(nthreads = 2)
+models <- list.files(path = "./outputs/model_C")
+
+mdl1 <- h2o.loadModel("./outputs/model_C/DeepLearning_grid__2_AutoML_20211006_110049_model_29")
 ```
 
-## Including Plots
+### Modelo 2
 
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+### Modelo 3

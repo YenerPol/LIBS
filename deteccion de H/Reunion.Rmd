@@ -30,7 +30,7 @@ Los conjuntos se mantendrán separados (la razón se explica mas adelante) y se 
 ```{r libraries}
 # librerias usadas
 library(tidyverse)      # para manipulaciond de los datos
-#setwd('./deteccion de H/')
+#setwd('./deteccion de H')
 source('./funciones utiles.R')
 source('./BaseLine_Script.R')
 source('./Funciones_Prepocesado.R')
@@ -197,29 +197,320 @@ El modelado se centra en el uso de redes neuronales (de tipo Feed Forward Neural
 
 Es practica común dividir los datos en en dos grupos un "train set" y un "test set" (80% y 20% respectivamente). Para aumentar la probabilidad de generalizar correctamente, dada.. bueno... la confiabilidad en la situación del LIBS, los datos se dividieron en 3 sets; *train (74%), validation (13%) y test (13%).* El modelo se entreno usando el *test set* y se optimizo internamiente utilizando [Cross Validation](https://en.wikipedia.org/wiki/Cross-validation_(statistics)). Sin embargo, los modelos obtenidos se eligieron en función a su desempeño con el **validation set** y no a su desempeño en el paso de **Cross Validation** ya que se corre el riesgo de memorizar los datos de entrada y alejarnos de la generalización.
 
-Para la optimizacion de los hiperparametros se utilizo [random grid search](https://analyticsindiamag.com/why-is-random-search-better-than-grid-search-for-machine-learning/). 
+Para la optimizacion de los hiperparametros se utilizo [random grid search](https://analyticsindiamag.com/why-is-random-search-better-than-grid-search-for-machine-learning/).
 
 ### Modelo 1
 
-Este modelo plantea el escenario ideal en el que se toman datos en un día cualquiera, se entrena un modelo, y luego se evalúa en un nuevo set de datos.
+Este modelo plantea el escenario ideal en el que se toman datos en un día cualquiera, se entrena un modelo, y luego se evalúa en un nuevo set de datos. Se plantea un modelo de clasificación porque el entrenamiento es mas rápido en mi limitada compu :(. La intensión es observar como afecta la distribución de los datos al comportamiento final, luego se pasara a un modelo de regresión.
 
 La distribución de los datos fue la siguiente:
 
-- Datos dia 1: Total (por muestra) = 13 -> Train = 0, validation = 0, test = 13
-- Datos dia 2: Total (por muestra) = 33 -> Train = 25, validation = 4, test = 4
+-   Datos dia 1: Total (por muestra) = 13 -\> Train = 0, validation = 0, test = 13
+-   Datos dia 2: Total (por muestra) = 33 -\> Train = 25, validation = 4, test = 4
 
-El codigo esta en mi [repo](https://github.com/YenerPol/LIBS/blob/master/deteccion%20de%20H/modelo_C.R), aca se cargan directamente el mejor modelo y se evalua su desempeño en el test set. 
+El codigo esta en mi [repo](https://github.com/YenerPol/LIBS/blob/master/deteccion%20de%20H/modelo_C.R), acá se carga directamente el mejor modelo y se evalúa su desempeño en el test set.
 
-```{r cars}
+```{r}
 load(file = './Data/Data_modelo_C.RData')
 
 library(h2o)    # Libreria de machine learning        
 h2o.init(nthreads = 2)
-models <- list.files(path = "./outputs/model_C")
+h2o.no_progress()
+
+train <- as.h2o(train)
+val <- as.h2o(val)
+test <- as.h2o(test)
+
+train[,'class'] <- as.factor(train[,'class'])
+val[,'class'] <- as.factor(val[,'class'])
+test[,'class'] <- as.factor(test[,'class'])
 
 mdl1 <- h2o.loadModel("./outputs/model_C/DeepLearning_grid__2_AutoML_20211006_110049_model_29")
+h2o.confusionMatrix(mdl1)
+```
+
+```{r}
+h2o.confusionMatrix(mdl1, val)
+```
+
+```{r}
+h2o.confusionMatrix(mdl1, test)
+```
+
+Claramente este modelo no puede generalizar nada bien, pero, ahora separo los datos de acuerdo al conjunto al cual pertenecen (dia 1 o dia 2):
+
+```{r}
+real.ppm <- as.data.frame(test[,'class']) 
+mdl1.ppm <- as.data.frame(h2o.predict(mdl1, test))
+df <- data.frame(real.ppm, mdl1.ppm[,'predict']) %>% 
+        setNames(c('real','mdl1')) %>% 
+        mutate( error1 = real == mdl1 )
+
+# Que pasa si separo el test set por dia? cual es el error para cada dia?
+Resul.d1 <- df[1:65,]
+Resul.d2 <- df[66:85,]
+
+mean.dia1 <- mean(Resul.d1$real  ==  Resul.d1$mdl1)     # 0.6
+mean.dia2 <- mean(Resul.d2$real  ==  Resul.d2$mdl1)     # 0.95
+```
+
+El porcentaje de aciertos para el dia 1 es `mean.dia1`, y se distribuyen de la siguiente manera:
+
+```{r}
+# separando por dia y por muestra
+Resul.d1[,c('real','mdl1')] %>% 
+        mutate(error = real == mdl1) %>%
+        group_by(real) %>% 
+        summarise(mean = mean(error))
+```
+
+El porcentaje de aciertos para el dia 1 es `mean.dia2`, y se distribuyen de la siguiente manera:
+
+```{r}
+Resul.d2[,c('real','mdl1')] %>% 
+        mutate(error = real == mdl1) %>%
+        group_by(real) %>% 
+        summarise(mean = mean(error))
+```
+
+El modelo no es bueno generalizando. ¡Uh! que dolor, que dolor, que pena.
+
+```{r remove all mdl1}
+rm(list= ls())
 ```
 
 ### Modelo 2
 
+Se cambia la distribución de los datos:
+
+-   Datos dia 1: Total (por muestra) = 13 -\> Train = 9, validation = 2, test = 2
+-   Datos dia 2: Total (por muestra) = 33 -\> Train = 25, validation = 4, test = 4
+
+El código esta en mi [repo](https://github.com/YenerPol/LIBS/blob/master/deteccion%20de%20H/modelo_A.R), acá se cargan directamente los mejores modelos y se evalúa su desempeño en el test set.
+
+#### Modelo 2 - clasificacion:
+
+```{r cars}
+load(file = './Data/Data_modelo_A.RData')
+
+# library(h2o)    # Libreria de machine learning        
+# h2o.init(nthreads = 2)
+
+train <- as.h2o(train)
+val <- as.h2o(val)
+test <- as.h2o(test)
+
+train[,'class'] <- as.factor(train[,'class'])
+val[,'class'] <- as.factor(val[,'class'])
+test[,'class'] <- as.factor(test[,'class'])
+
+mdl1 <- h2o.loadModel("./outputs/DeepLearning_grid__1_AutoML_20211004_115311_model_31")
+h2o.confusionMatrix(mdl1)
+```
+
+```{r}
+h2o.confusionMatrix(mdl1, val)
+```
+
+```{r}
+h2o.confusionMatrix(mdl1, test)
+```
+
+El modelo ahora tiene 90% de aciertos en el test set, pero, eso **no significa que pueda generalizar**.
+
+**OJO** los datos del *validation set* soy muy representativos del *training set*, y como se vio en la matriz de confusión anterior, también lo son del *test set*. Pero ¿que pasaría si tomamos datos un tercer día, la variación de los datos interdia (que no podemos medir, los famosos **desconocidos desconocidos**, o **conocidos desconocidos** como energía del láser, humedad, distancia) se ve lo suficientemente representada por dos días de muestreo?
+
+```{r, echo=FALSE}
+h2o.learning_curve_plot(mdl1)
+```
+
+```{r}
+rm(list= ls())
+```
+
+#### Modelo 2 - regresion:
+
+Misma distribución de datos, pero ahora como problema de regresión.
+
+```{r}
+load(file = './Data/Data_modelo_A.RData')
+# library(h2o)    # Libreria de machine learning        
+# h2o.init(nthreads = 2)
+
+train <- as.h2o(train)
+val <- as.h2o(val)
+test <- as.h2o(test)
+
+train$class <- as.numeric(train$class) 
+val$class <- as.numeric(val$class) 
+test$class <- as.numeric(test$class) 
+
+mdl1 <- h2o.loadModel("C:\\Users\\gomez\\Documents\\LIBS\\deteccion de H\\outputs\\DeepLearning_grid__3_AutoML_20211004_154141_model_8")
+mdl2 <- h2o.loadModel("C:\\Users\\gomez\\Documents\\LIBS\\deteccion de H\\outputs\\DeepLearning_grid__3_AutoML_20211004_154141_model_3")
+mdl3 <- h2o.loadModel("C:\\Users\\gomez\\Documents\\LIBS\\deteccion de H\\outputs\\DeepLearning_grid__2_AutoML_20211004_154141_model_8")
+```
+
+Se guardaron los tres mejores modelos para futura comparación con nuevos datos.
+
+```{r}
+real.ppm <- as.data.frame(test[,'class']) 
+mdl1.ppm <- as.data.frame(h2o.predict(mdl1, test))
+mdl2.ppm <- as.data.frame(h2o.predict(mdl2, test))
+mdl3.ppm <- as.data.frame(h2o.predict(mdl3, test))
+
+error <- data.frame(real.ppm, mdl1.ppm, mdl2.ppm, mdl3.ppm) %>% 
+        summarise(diff1 = abs(class - predict),
+                  diff2 = abs(class - predict.1),
+                  diff3 = abs(class - predict.2))
+```
+
+Analisando los errores absolutos para cada modelo:
+
+```{r}
+error %>% map_df(quantile, c(0.25,0.5,0.75,0.95, 1))
+```
+
+```{r, echo=FALSE}
+rm(list= ls())
+```
+
+**OJO** Son modelos interesantes para probar con datos de un tercer día.
+
 ### Modelo 3
+
+Finalmente, se cambia la distribución de los datos para un tercer modelado:
+
+-   Datos dia 1: Total (por muestra) = 13 -\> Train = 0, validation = 6, test = 7
+-   Datos dia 2: Total (por muestra) = 33 -\> Train = 25, validation = 0, test = 8
+
+El objetivo nuevamente es la generalización. Esta vez el modelo se entrena solo con datos del día 2 pero se evalúa exclusivamente con datos del día 1, por lo tanto no aprende directamente de los datos del día 1. Finalmente se evalúan tres modelos contra un test set mixto dia 1 + dia 2.
+
+El código esta en mi [repo](https://github.com/YenerPol/LIBS/blob/master/deteccion%20de%20H/modelo_B.R), acá se cargan directamente los mejores modelos y se evalúa su desempeño en el test set.
+
+```{r, echo=FALSE}
+load(file = './Data/Data_modelo_B.RData')
+```
+
+#### Modelo 3 - clasificacion:
+
+```{r}
+train <- as.h2o(train)
+val <- as.h2o(val)
+test <- as.h2o(test)
+
+train[,'class'] <- as.factor(train[,'class'])
+val[,'class'] <- as.factor(val[,'class'])
+test[,'class'] <- as.factor(test[,'class'])
+
+mdl1 <- h2o.loadModel("C:\\Users\\gomez\\Documents\\LIBS\\deteccion de H\\outputs\\DeepLearning_grid__3_AutoML_20211005_201843_model_3")
+```
+
+```{r}
+predictions <- h2o.predict(mdl1, test)
+real.class <- as.data.frame(test[,'class']) 
+pred.class <- as.data.frame(predictions)
+df <- data.frame(real.class,pred.class[,'predict'])
+names(df) <- c('real','predicted')
+
+mean.all <- mean((as.numeric(real.class$class) == as.numeric(pred.class$predict))) # 0.78!!!
+```
+
+Este modelo tiene un porcentaje de aciertos de `mean.all` en el test set!! Pero, que pasa si evaluamos por dia?
+
+```{r}
+# Que pasa si separo el test set por dia? cual es el error para cada dia?
+Resul.d1 <- df[1:35,]
+Resul.d2 <- df[36:75,]
+
+mean.d1 <- mean(Resul.d1$real  ==  Resul.d1$predicted)     # 0.6
+mean.d2 <- mean(Resul.d2$real  ==  Resul.d2$predicted)     # 0.95
+```
+
+El porcentaje de aciertos para los datos del *test set* provenientes del dia 1 es `mean.d1`, separados por muestra obtenemos:
+
+```{r}
+Resul.d1 %>% 
+        mutate(error = real == predicted) %>%
+        group_by(real) %>% 
+        summarise(mean = mean(error))
+```
+
+El porcentaje de aciertos para los datos del *test set* provenientes del dia 2 es `mean.d2`, separados por muestra obtenemos:
+
+```{r}
+Resul.d2 %>% 
+        mutate(error = real == predicted) %>%
+        group_by(real) %>% 
+        summarise(mean = mean(error))
+```
+
+Acá se ve algo muy interesante...
+
+```{r, echo=FALSE}
+rm(list= ls())
+```
+
+#### Modelo 3 - regresion:
+
+Misma distribución de datos, pero ahora como problema de regresión.
+
+```{r}
+load(file = './Data/Data_modelo_B.RData')
+
+train$class <- as.numeric(train$class) 
+val$class <- as.numeric(val$class) 
+test$class <- as.numeric(test$class) 
+
+train <- as.h2o(train)
+val <- as.h2o(val)
+test <- as.h2o(test)
+
+mdls <- list.files('./outputs/model_B')
+mdl1 <- h2o.loadModel(paste('./outputs/model_B/', mdls[1], sep = ''))
+mdl2 <- h2o.loadModel(paste('./outputs/model_B/', mdls[2], sep = ''))
+mdl3 <- h2o.loadModel(paste('./outputs/model_B/', mdls[3], sep = ''))
+```
+
+```{r}
+real.ppm <- as.data.frame(test[,'class']) 
+mdl1.ppm <- as.data.frame(h2o.predict(mdl1, test))
+mdl2.ppm <- as.data.frame(h2o.predict(mdl2, test))
+mdl3.ppm <- as.data.frame(h2o.predict(mdl3, test))
+
+error <- data.frame(real.ppm, mdl1.ppm, mdl2.ppm, mdl3.ppm) %>% 
+        mutate(diff1 = abs(class - predict),
+                  diff2 = abs(class - predict.1),
+                  diff3 = abs(class - predict.2))
+```
+
+```{r}
+error %>% 
+        select(diff1:diff3) %>% 
+        map_df(quantile, c(0.25,0.5,0.75,0.95, 1))
+```
+
+Al igual que con los datos de clasificacion, se separan por dia y por muestra para evaluar los resultados.
+
+```{r}
+# Que pasa si separo el test set por dia? cual es el error para cada dia?
+Resul.d1 <- error[1:35,]
+Resul.d2 <- error[36:75,]
+
+Resul.d1 %>% 
+        group_by(class) %>% 
+        summarise(q50 = quantile(diff1,0.50),
+                  q75 = quantile(diff1,0.75),
+                  q95 = quantile(diff1,0.95),
+                  mean = mean(diff1))
+```
+
+```{r}
+Resul.d2 %>% 
+        group_by(class) %>% 
+        summarise(q50 = quantile(diff1,0.50),
+                  q75 = quantile(diff1,0.75),
+                  q95 = quantile(diff1,0.95),
+                  mean = mean(diff1))
+```
+
+Muy interesante, discutir...

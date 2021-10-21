@@ -4,7 +4,14 @@
 .Ruserdata
 /Data/
 */Data/
-/Outputs/
+*/Outputs/
 Scripts/EMSLIBS - Contest/datos_intento1.RData
 *.csv
 deteccion de H/README.html
+*/espectros/
+*/outputs/
+Outputs/DeepLearning_grid__2_AutoML_20211001_172201_model_11
+Outputs/IOMLIBS/espectro con baseline.png
+Outputs/IOMLIBS/espectro sin BL.png
+Outputs/Rplot.png
+Outputs/Rplot01.png

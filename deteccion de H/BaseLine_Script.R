@@ -80,14 +80,23 @@ FUN.plot.comp <- function(df_I, df_new_I, n = 1){
 }
 
 
-FUN.plot.comp <- function(wave, df_I, df_new_I, n = 1){
+FUN.plot.comp <- function(wave, df_I, df_new_I, n = 1, x_scale = 'wave' ){
         if(length(as.numeric(df_I[n,])) == nrow(wave)){
-                A <- data.frame(wave, Intensidad = as.numeric(df_I[n,]))
-                B <- data.frame(wave, Intensidad = as.numeric(df_new_I[n,]))
-                g <- ggplot(A,aes(Wavelength, Intensidad)) +
-                        geom_line() +
-                        geom_line(data=B, colour='red')   
-                g
+                if(x_scale == 'wave'){
+                        A <- data.frame(wave, Intensidad = as.numeric(df_I[n,]))
+                        B <- data.frame(wave, Intensidad = as.numeric(df_new_I[n,]))
+                        g <- ggplot(A,aes(Wavelength, Intensidad)) +
+                                geom_line() +
+                                geom_line(data=B, colour='red')   
+                        g        
+                }else{
+                        A <- data.frame(wave, Intensidad = as.numeric(df_I[n,]))
+                        B <- data.frame(wave, Intensidad = as.numeric(df_new_I[n,]))
+                        g <- ggplot(A,aes(rowid, Intensidad)) +
+                                geom_line() +
+                                geom_line(data=B, colour='red')   
+                        g       
+                }
         }else{
                 print(paste(length(as.numeric(df_I[n,])),' is different to ', nrow(wave)))
         }

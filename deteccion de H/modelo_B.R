@@ -108,6 +108,7 @@ colnames(indices) <- c('a','b','c','d','f')
 indices <- indices %>% as.data.frame() %>% mutate(index = ifelse((a == TRUE) | (b  == TRUE) | (c  == TRUE) | (d  == TRUE) | (f  == TRUE), TRUE, FALSE)) 
 
 sum(indices$index) # 246
+save(indices, file = './Data/indices_modelo_B.RData')
 
 # Seleccionando características de interés
 I_new.1 <- L.1 %>% 
@@ -306,7 +307,7 @@ mdl1 <- h2o.loadModel("C:\\Users\\gomez\\Documents\\LIBS\\deteccion de H\\output
 mdl2 <- h2o.loadModel("C:\\Users\\gomez\\Documents\\LIBS\\deteccion de H\\outputs\\DeepLearning_grid__3_AutoML_20211004_154141_model_3")
 mdl3 <- h2o.loadModel("C:\\Users\\gomez\\Documents\\LIBS\\deteccion de H\\outputs\\DeepLearning_grid__2_AutoML_20211004_154141_model_8")
 
-load(file = './Data/Data_modelo_A.RData')
+load(file = './Data/Data_modelo_B.RData')
 train$class <- as.numeric(train$class) 
 val$class <- as.numeric(val$class) 
 test$class <- as.numeric(test$class) 

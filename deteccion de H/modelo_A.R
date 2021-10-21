@@ -212,10 +212,10 @@ set.seed(123)
 # distribucion aleatoria de las observaciones (rows)
 train <- train[sample(1:nrow(train)), ]
 val <- val[sample(1:nrow(val)), ]
-test <- val[sample(1:nrow(test)), ]
+test <- test[sample(1:nrow(test)), ]
 
 table(train$class)
-table(test$class)
+table(val$class)
 table(test$class)
 
 train$class <- as.numeric(train$class) 

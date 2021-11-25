@@ -1,24 +1,9 @@
----
-title: "Perfil de concentracion"
-author: "Paul Gomez"
-date: "10/19/2021"
-output: html_document
----
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-## Descripcion
-
-Este script sirve para hallar el perfil de concentración de Er en el triplete de difusión Zr/Er/Zr20Nb. Incluye lectura de datos, selección manual del pico de interés, gráficos de inspección, etc. Replica el archivo de mathcad usado por el grupo.
-
-```{r espectros}
+setwd('./pares de difusion/')
 library(tidyverse, verbose = FALSE)
 # Funcion para lectura de datos
 #dir <- "./espectros/Zr_Er_Zr20Nb_19102021/"
-dir <- "./espectros/cupla Zr-Er-ZrNb paralela/ExpIII/"
-n_spec <- length(list.files(dir))
+dir <- "./espectros/diagonal/ExpI/"
+n_spec <- length(list.files(dir)) - 1
 FUN.read <- function(path, n){
         M <- numeric()
         for(i in 1:n){
@@ -31,12 +16,12 @@ FUN.read <- function(path, n){
 }
 M_espectros <- FUN.read(dir, n_spec)
 M_espectros %>% round(4) %>% dim()
-```
 
-```{r grafico inspeccion}
+## inspeccion
+## 
 wavelen <- read_tsv(file = paste(dir, '/a1.ols', sep = ''), skip = 6,
                     show_col_types = FALSE) %>% 
-           select(Wavelength) %>% rowid_to_column()
+        select(Wavelength) %>% rowid_to_column()
 
 wavelen$Wavelength <- round(wavelen$Wavelength, 4)
 
@@ -44,13 +29,10 @@ g <- data.frame(Wavelength = wavelen$Wavelength, Counts = M_espectros[1,]) %>%  
         ggplot(aes(Wavelength, Counts)) + geom_line() 
 
 g %>% plotly::ggplotly() #%>% plotly::highlight("plotly_selected")
-```
-
-## Normalizacion
-
-La normalizacion es por detector y se realiza por suma total. Los indices correspondientes a cada detector son:
-
-```{r normalizacion suma total}
+##
+##
+## Normalizacion por suma total
+## 
 num_detec <- 4    # Numero de detectores
 index_detec <- list(c(1:2048), c(2049:3983), c(3984:5924), c(5925:7865)) 
 
@@ -71,28 +53,26 @@ FUN.norm <- function(M, n = 4, index){
 
 M_norm <- FUN.norm(M_espectros, n = num_detec, index = index_detec)
 M_norm <- cbind(M_norm[[1]],M_norm[[2]],M_norm[[3]],M_norm[[4]])
-```
 
-```{r grafico espectro normalizado}
+## g Inspecion
+## 
 g <- data.frame(Wavelength = wavelen$Wavelength, Counts = M_norm[1,]) %>%                       rowid_to_column() %>%  
         ggplot(aes(Wavelength, Counts)) + geom_line() 
 
 g %>% plotly::ggplotly()
-```
+##
+##
 
-## Selección pico Er
-
-```{r}
 FUN.plot.pico <- function(pico, w = 2){
         data <- M_norm[,which(wavelen$Wavelength >= (pico - w) & 
-                        wavelen$Wavelength <= (pico + w))]
+                                      wavelen$Wavelength <= (pico + w))]
         data <- data %>% 
                 as_tibble() %>% 
                 set_names(as.character(wavelen$Wavelength[
                         which(wavelen$Wavelength >= (pico - w) &
-                              wavelen$Wavelength <= (pico + w))])) %>%
+                                      wavelen$Wavelength <= (pico + w))])) %>%
                 rowid_to_column()
-
+        
         NAMES <- setdiff(names(data), 'rowid')
         
         data <- data %>% 
@@ -100,41 +80,22 @@ FUN.plot.pico <- function(pico, w = 2){
                              names_to = "wavelength",
                              names_transform = list(wavelength = as.numeric),
                              values_to = "Intensity")
-
+        
         g <- data %>% 
                 ggplot(aes(x = wavelength, y = Intensity, group = rowid)) +
                 geom_line() + 
                 geom_vline(xintercept = pico, colour = 'red')
         g
 }
-```
 
-```{r pico Er}
-pico_Er <- 369.0904
-FUN.plot.pico(pico = pico_Er, w = 2) %>% plotly::ggplotly()
-# 369.0026 - - 369.2220
-```
-
-## Selección pico de Zr
-
-```{r pico Zr}
-#pico_Zr <- 339.0371
-pico_Zr <- 357.0441
-FUN.plot.pico(pico = pico_Zr, w = 2) %>% plotly::ggplotly()
-```
-
-## Selección pico de Nb
-
-```{r}
 pico_Nb <- 322.3791
 FUN.plot.pico(pico = pico_Nb , w = 2) %>% plotly::ggplotly()
-```
+pico_Zr <- 339.0371
+FUN.plot.pico(pico = pico_Zr , w = 2) %>% plotly::ggplotly()
 
-## Perfil de concentración
 
-El area del pico es la sumatoria de las cuentas de una ventana de 5 indices centrada en el pico de interes.
+pico_Er <- 369.0904
 
-```{r integrando area por pico}
 FUN.cuentas <- function(p){
         ind <- wavelen$rowid[which(wavelen$Wavelength == p)]
         m <- M_norm[,(ind-2):(ind+2)]
@@ -152,7 +113,7 @@ g <- data.frame(Er = Er, Zr = Zr, Nb = Nb) %>%
                      names_to = "Elementos",
                      values_to = "Intensidad") %>% 
         ggplot(aes(x = rowid, y = Intensidad, colour = Elementos)) +
-                geom_point() + geom_line()
+        geom_point() + geom_line()
 
 caption <- paste("Lineas elegidas:","\n",
                  "Er: ",pico_Er,"\n", 
@@ -160,12 +121,3 @@ caption <- paste("Lineas elegidas:","\n",
                  "Nb: ",pico_Nb,"\n", sep = '')
 
 g + annotate(geom = 'text', x = 20, y = 0.009, label = caption) 
-```
-
-```{r}
-ggsave('./outputs/perfil_datos_ExpIII.jpg', device = 'jpg',
-       plot = last_plot(),
-       width = 24,
-       height = 16,
-       units = "cm")
-```

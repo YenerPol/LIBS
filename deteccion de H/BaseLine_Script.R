@@ -20,7 +20,7 @@ find.BL <- function(df, w){
 }
 
 BaseLine <- function(row1, w = 200){ # w es el ancho de la ventana
-        df <- (data.frame(index = c(1:length(row1)), I = row1))
+        df <- data.frame(index = c(1:length(row1)), I = row1)
         # establece la ventana para cada linea de emision
         df <- df %>% mutate(J1 = index - w/2) %>% mutate(Jn = index + w/2)
         # repetir el primer y el utlimo valor de intensidad para suvizar los extremos

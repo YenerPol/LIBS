@@ -2,9 +2,9 @@ library(tidyverse)
 source('./deteccion de H/BaseLine_Script.R')
 
 # Espectro Er Puro
-#dir <- 'C:/Users/gomez/Documents/MEGA/sabato/IS - Tesis/Tesis - actualizar copia diariamente/Elementos puros medidos/Er puro/Er 4.6J.ols'
+dir <- 'C:/Users/gomez/Documents/MEGA/sabato/IS - Tesis/Tesis - actualizar copia diariamente/Elementos puros medidos/Er puro/Er 4.6J.ols'
 # Espectro Zr puro
-# dir <- 'C:/Users/gomez/Documents/MEGA/sabato/IS - Tesis/Tesis - actualizar copia diariamente/Elementos puros medidos/Zr puro 4 detectores 4.59J/Zr puro 2.ols'
+dir <- 'C:/Users/gomez/Documents/MEGA/sabato/IS - Tesis/Tesis - actualizar copia diariamente/Elementos puros medidos/Zr puro 4 detectores 4.59J/Zr puro 2.ols'
 # # Espectro Nb puro
 dir <- 'C:/Users/gomez/Documents/MEGA/sabato/IS - Tesis/Tesis - actualizar copia diariamente/Elementos puros medidos/Nb puro/Nb 4detectores 4.59J.ols'
 # 

@@ -1,0 +1,277 @@
+---
+title: "Coeficiente ID"
+author: "Paul Gomez"
+date: "12/20/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Coeficiente de ID Er (Datos Lado Zr20Nb)
+
+Acá se calcula el coeficiente de interdifiusion con los datos tomados desde la interfaz hacia el lado Zr20Nb
+
+```{r Datos lado Zr20Nb, message=FALSE}
+library(tidyverse, verbose = FALSE)
+dir <- "./espectros/Lado Zr-20Nb/"
+
+n_spec <- length(list.files(dir)) - 1
+
+# Funcion para lectura de datos
+FUN.read <- function(path, n){
+        M <- numeric()
+        for(i in 1:n){
+                spec <- read_tsv(file = paste(path, "a",i,".ols",  sep = ''), 
+                                 skip = 6, show_col_types = FALSE) %>% 
+                        select(Counts)
+                M <- rbind(M, spec$Counts) 
+        }
+        M
+}
+
+M_espectros <- FUN.read(dir, n_spec)
+M_espectros <-  M_espectros %>% round(4) 
+M_espectros %>% dim()
+```
+
+#### Grafico de Inspeccion
+
+```{r grafico de inspeccion}
+wavelen <- read_tsv(file = paste(dir, '/a1.ols', sep = ''), skip = 6,
+                    show_col_types = FALSE) %>%
+        select(Wavelength) %>% rowid_to_column()
+
+wavelen$Wavelength <- round(wavelen$Wavelength, 4)
+
+g <- data.frame(Wavelength = wavelen$Wavelength, Counts = M_espectros[1,]) %>%             rowid_to_column() %>%
+        ggplot(aes(Wavelength, Counts)) + geom_line() 
+
+g + theme_test() + labs(title = 'Espectro de prueba lado Zr20Nb',
+                        x = 'Longitud de onda (nm)',
+                        y = 'Cantidad de cuentas (UA)') 
+      
+```
+
+#### Normalizar por suma total 
+
+```{r Normalizar por suma total}
+num_detec <- 4    # Numero de detectores
+index_detec <- list(c(1:2048), c(2049:3983), c(3984:5924), c(5925:7865)) 
+
+FUN.norm <- function(M, n = 4, index){
+        lista <- vector(mode = 'list', length = n)
+        for(i in 1:n){
+                # separar detector
+                lista[[i]] <- M[,index[[i]]]
+                # hacer minimo = 0
+                minimo <- apply(lista[[i]], 1, min)
+                lista[[i]] <- lista[[i]] + abs(minimo)
+                # Dividir por suma total
+                total <- apply(lista[[i]], 1, sum)
+                lista[[i]] <- lista[[i]] / total
+        }
+        lista       
+}
+
+M_norm <- FUN.norm(M_espectros, n = num_detec, index = index_detec)
+M_norm <- cbind(M_norm[[1]],M_norm[[2]],M_norm[[3]],M_norm[[4]])
+
+data.frame(Wavelength = wavelen$Wavelength, Counts = M_norm[10,]) %>%                      rowid_to_column() %>%
+        ggplot(aes(Wavelength, Counts)) + geom_line() + theme_test() + 
+        labs(title = 'Espectro normalizado lado Zr20Nb',
+                        x = 'Longitud de onda (nm)',
+                        y = 'Cantidad de cuentas (UA)') 
+```
+
+#### Inspección de picos 
+
+```{r Funcion grafico pico, echo=FALSE}
+FUN.plot.pico <- function(pico, w = 2){
+        data <- M_norm[,which(wavelen$Wavelength >= (pico - w) &
+                                      wavelen$Wavelength <= (pico + w))]
+        data <- data %>%
+                as_tibble() %>%
+                set_names(as.character(wavelen$Wavelength[
+                        which(wavelen$Wavelength >= (pico - w) &
+                                      wavelen$Wavelength <= (pico + w))])) %>%
+                rowid_to_column()
+
+        NAMES <- setdiff(names(data), 'rowid')
+
+        data <- data %>%
+                pivot_longer(all_of(NAMES),
+                             names_to = "wavelength",
+                             names_transform = list(wavelength = as.numeric),
+                             values_to = "Intensity")
+
+        g <- data %>%
+                ggplot(aes(x = wavelength, y = Intensity, group = rowid)) +
+                geom_line() +
+                geom_vline(xintercept = pico, colour = 'red') +
+                theme_test() + 
+                labs(x = NULL,
+                     y = NULL)
+        g
+}
+```
+
+```{r}
+pico_Nb <- 322.3791
+g_pico_Nb <- FUN.plot.pico(pico = pico_Nb , w = 1) + 
+                ylab('Cant. de cuentas (UA)')
+pico_Zr <- 357.0441
+g_pico_Zr <- FUN.plot.pico(pico = pico_Zr , w = 1) + 
+                xlab('Longitud de onda(nm)') 
+pico_Er <- 369.0904
+g_pico_Er <- FUN.plot.pico(pico = pico_Er , w = 1) 
+
+library(patchwork)
+g_pico_Er + g_pico_Nb + g_pico_Zr + plot_layout(ncol = 1)
+```
+
+#### Perfil de concentracion 
+
+```{r}
+FUN.cuentas <- function(p){
+        ind <- wavelen$rowid[which(wavelen$Wavelength == p)]
+        m <- M_norm[,(ind-2):(ind+2)]
+        cuentas <- apply(m, 1, sum)
+        cuentas
+}
+
+Er <- FUN.cuentas(pico_Er)
+Zr <- FUN.cuentas(pico_Zr)
+Nb <- FUN.cuentas(pico_Nb)
+```
+
+```{r}
+g <- data.frame(Er = Er, Zr = Zr, Nb = Nb) %>% 
+        rowid_to_column() %>% 
+        pivot_longer(Er:Nb,
+                     names_to = "Elementos",
+                     values_to = "Intensidad") %>% 
+        ggplot(aes(x = rowid, y = Intensidad, colour = Elementos)) +
+        geom_point() + geom_line()
+
+caption <- paste("Lineas elegidas:","\n",
+                 "Er: ",pico_Er,"\n", 
+                 "Zr: ",pico_Zr,"\n", 
+                 "Nb: ",pico_Nb,"\n", sep = '')
+
+g + annotate(geom = 'text', x = 80, y = 0.01, label = caption) + 
+        ggtitle('Perfil lado: Zr20Nb')
+```
+
+#### Calculo de Coeficiente de ID
+
+```{r}
+# paquete para usar funcion error
+library(pracma)
+
+df <- data.frame(cuentas = Er) %>%
+        rowid_to_column() %>%
+        mutate(distancia = rowid*40,
+               erf_i_cuentas = (erf(cuentas))^-1)
+
+# df %>%
+#         ggplot(aes(x = distancia, y = cuentas)) +
+#         geom_line() + geom_point() +
+#         xlab('Distancia (um)') + 
+#         ylab('Numero de cuentas')
+
+df %>% ggplot(aes(x = distancia, y = erf_i_cuentas)) +
+       #geom_line() + 
+       geom_point() +
+       geom_smooth(method = lm) + 
+       labs(x = 'Distancia (um)', y = 'Error inversa') + 
+       theme_test()
+   
+
+```
+
+```{r modelo lineal}
+model <- lm(erf_i_cuentas ~ distancia, df)
+summary(model)
+
+model$coefficients
+TT <- 1.702e+7 # tiempo de tratamiento = 197dias
+
+D_ID <- 1/(4*TT*(model$coefficients[2]^2))      # micrones^2 / s
+D_ID <- D_ID * (1e-6)^2                         # metros^2 / s
+# 6.243175e-20 
+```
+
+El coeficiente de ID para el Er es \`r D_ID\` metros\^2 / s
+
+## Coeficiente de ID Er (Datos Lado Zr)
+
+```{r datos}
+dir <- "./espectros/Lado Zr/"
+
+n_spec <- length(list.files(dir)) - 1
+
+M_espectros <- FUN.read(dir, n_spec)
+M_espectros <-  M_espectros %>% round(4) 
+M_espectros %>% dim()
+```
+
+```{r Normalizar}
+M_norm <- FUN.norm(M_espectros, n = num_detec, index = index_detec)
+M_norm <- cbind(M_norm[[1]],M_norm[[2]],M_norm[[3]],M_norm[[4]])
+
+data.frame(Wavelength = wavelen$Wavelength, Counts = M_norm[10,]) %>%                      rowid_to_column() %>%
+        ggplot(aes(Wavelength, Counts)) + geom_line() + theme_test() + 
+        labs(title = 'Espectro normalizado lado Zr',
+                        x = 'Longitud de onda (nm)',
+                        y = 'Cantidad de cuentas (UA)') 
+```
+
+```{r}
+pico_Er <- 312.0891
+Er <- FUN.cuentas(pico_Er)
+Zr <- FUN.cuentas(pico_Zr)
+Nb <- FUN.cuentas(pico_Nb)
+```
+
+```{r}
+g <- data.frame(Er = Er, Zr = Zr, Nb = Nb) %>% 
+        rowid_to_column() %>% 
+        pivot_longer(Er:Nb,
+                     names_to = "Elementos",
+                     values_to = "Intensidad") %>% 
+        ggplot(aes(x = rowid, y = Intensidad, colour = Elementos)) +
+        geom_point() + geom_line()
+
+caption <- paste("Lineas elegidas:","\n",
+                 "Er: ",pico_Er,"\n", 
+                 "Zr: ",pico_Zr,"\n", 
+                 "Nb: ",pico_Nb,"\n", sep = '')
+
+g + annotate(geom = 'text', x = 80, y = 0.01, label = caption) + 
+        ggtitle('Perfil lado: Zr')
+```
+
+```{r}
+n <- 85
+df <- data.frame(cuentas = Er[1:n]) %>%
+        mutate(rowid = n:1)
+
+df <- df %>% mutate(distancia = rowid*40,
+                    erf_i_cuentas = (erf(cuentas))^-1)
+
+df %>%
+        ggplot(aes(x = distancia, y = cuentas)) +
+        geom_line() + geom_point() +
+        xlab('Distancia (um)') +
+        ylab('Numero de cuentas')
+
+df %>% ggplot(aes(x = distancia, y = erf_i_cuentas)) +
+       #geom_line() + 
+       geom_point() +
+       geom_smooth(method = lm) + 
+       labs(x = 'Distancia (um)', y = 'Error inversa') + 
+       theme_test()
+
+```

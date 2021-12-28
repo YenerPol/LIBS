@@ -84,11 +84,11 @@ M_norm <- M_norm %>% map(~ cbind(.x[[1]], .x[[2]], .x[[3]], .x[[4]]))
 
 lapply(M_norm, dim) # para inspeccion
 
-g <- data.frame(Wavelength = wavelen$Wavelength, Counts = M_norm[[1]][1,]) %>%                       
-        rowid_to_column() %>%  
-        ggplot(aes(Wavelength, Counts)) + geom_line() 
-
-g %>% plotly::ggplotly()
+# g <- data.frame(Wavelength = wavelen$Wavelength, Counts = M_norm[[1]][1,]) %>%                       
+#         rowid_to_column() %>%  
+#         ggplot(aes(Wavelength, Counts)) + geom_line() 
+# 
+# g %>% plotly::ggplotly()
 
 # Funcion para inspeccionar el pico seleccionado
 FUN.plot.pico <- function(pico, w = 2){
@@ -119,17 +119,17 @@ FUN.plot.pico <- function(pico, w = 2){
 ##### INSPECCION DE LOS PICOS ELEGIDOS #####
 # Pico caracteristico de Er:
 pico_Er <- 369.0904
-g1 <- FUN.plot.pico(pico = pico_Er, w = 2) 
+g1 <- FUN.plot.pico(pico = pico_Er, w = 0.5) 
 g1
 
 # Pico caracteristico de Zr:
 pico_Zr <- 357.0441
-g2 <- FUN.plot.pico(pico = pico_Zr, w = 2)
+g2 <- FUN.plot.pico(pico = pico_Zr, w = 0.5)
 g2
 
 # Pico caracteristico de Nb:
 pico_Nb <- 322.3791
-g3 <- FUN.plot.pico(pico = pico_Nb , w = 2) 
+g3 <- FUN.plot.pico(pico = pico_Nb , w = 0.5) 
 g3
 
 library(patchwork)
@@ -147,7 +147,7 @@ g <- data.frame(Wavelength = wavelen$Wavelength, Counts = M_norm[[exp]][punto,])
 
 g %>% plotly::ggplotly()
 
-# PErfil C
+###### PErfil C ######
 # Funcion que integra el pico
 FUN.cuentas <- function(p, barrido, spec_ini = 1, spec_fin = 200){
         ind <- wavelen$rowid[which(wavelen$Wavelength == p)]
@@ -171,7 +171,9 @@ FUN.perfil <- function(df){
                          "Zr: ",pico_Zr,"\n", 
                          "Nb: ",pico_Nb,"\n", sep = '')
         
-        g + annotate(geom = 'text', x = 20, y = 0.009, label = caption) 
+        g + annotate(geom = 'text', x = 20, y = 0.009, label = caption) +
+                xlab('Distancia (micrones)') +
+                ylab('Cantidad de cuentas (UA)')
 }
 
 ###### ## ##  PERFIL BARRIDO 1   ## ## ######
@@ -183,7 +185,7 @@ Zr <- FUN.cuentas(pico_Zr, barrido = b, ini , fin )
 Nb <- FUN.cuentas(pico_Nb, barrido = b, ini , fin )
 
 df_1 <- tibble(Er = Er, Zr = Zr, Nb =Nb) %>% rowid_to_column()
-g1 <- FUN.perfil(df_1)
+g_barrido_1 <- FUN.perfil(df_1)
 
 ###### ## ##  PERFIL BARRIDO 2   ## ## ######
 b <- 2
@@ -194,7 +196,7 @@ Zr <- FUN.cuentas(pico_Zr, barrido = b, ini , fin )
 Nb <- FUN.cuentas(pico_Nb, barrido = b, ini , fin )
 
 df_2 <- tibble(Er = Er, Zr = Zr, Nb =Nb) %>% rowid_to_column()
-g2 <- FUN.perfil(df_2)
+g_barrido_2 <- FUN.perfil(df_2)
 
 ###### ## ##  PERFIL BARRIDO 3   ## ## ######
 b <- 3
@@ -205,7 +207,7 @@ Zr <- FUN.cuentas(pico_Zr, barrido = b, ini , fin )
 Nb <- FUN.cuentas(pico_Nb, barrido = b, ini , fin )
 
 df_3 <- tibble(Er = Er, Zr = Zr, Nb =Nb) %>% rowid_to_column()
-g3 <- FUN.perfil(df_3)
+g_barrido_3 <- FUN.perfil(df_3)
 
 ###### Sumar los tres barridos #####
 # cual será la referencia para unir los datos? 
@@ -222,11 +224,40 @@ df_2$rowid <- df_2$rowid + 3
 df_3$rowid <- df_3$rowid + 6
 
 # esto hay que cambiarlo a distancia
-df_1$exp <- 1
-df_2$exp <- 2
-df_3$exp <- 3
+df_1$exp <- 0.334
+df_2$exp <- 1.334
+df_3$exp <- 2.334
 
 df_all <- rbind(df_1, df_2, df_3)
+
+df_all <- df_all %>%  
+        mutate(distancia = rowid*40)
+
+# eliminar puntos
+df_all <- df_all %>% filter(exp == 2.334 & ( distancia == 5480 | distancia == 5520))
+df_all <- df_all %>% filter(exp == 0.334 & ( distancia == 4640 | distancia == 4680))
+
+# Zr20Nb comienza en 4405 ((127*40)-675)
+# Zr comienza en 5755 ((127*40)+675)
+g <- df_all %>% 
+        pivot_longer(Er:Nb,
+                     names_to = "Elementos",
+                     values_to = "Intensidad") %>% 
+        ggplot(aes(x = distancia, y = Intensidad, colour = Elementos)) +
+                geom_point() + geom_line() + 
+                # centro del Er 127*40 = 5080um
+                geom_vline(xintercept = c((127*40)+675, (127*40)-675)) + 
+                annotate(geom = 'text', x = 5075, y = 0.020, label = 'Er \n (Inicial)') +
+                annotate(geom = 'text', x = 1800, y = 0.020, label = 'Zr20Nb \n (Inicial)') +
+                annotate(geom = 'text', x = 7500, y = 0.020, label = 'Zr \n (Inicial)') +
+                xlab('Distancia (micrones)') +
+                ylab('Cantidad de cuentas (UA)') +
+                theme_test()
+
+g
+
+ggsave('Outputs/perfil_difusion3barridos.png', g)
+ g %>% plotly::ggplotly()
 
 g <- FUN.perfil(df_all) #%>% plotly::ggplotly()
 
@@ -240,7 +271,7 @@ df_3D <- df_all %>%
                      values_to = "Intensidad")
 
 df_3D$x_coord <- df_3D$rowid * 40  
-df_3D$y_coord <- df_3D$exp * 500
+df_3D$y_coord <- df_3D$exp * 1230
 
 df_3D$color <- case_when(
         df_3D$Elementos == 'Er' ~ "blue",
@@ -255,5 +286,58 @@ plot3d(x=df_3D$x_coord,
        y=df_3D$y_coord,
        col=df_3D$color,
        type = 's', 
-       radius = 30,
+       radius = 50,
        xlab="Micrones", ylab="Micrones", zlab="Intensidad")
+
+###### Sumar diagonales ######
+
+M_espectros <- vector(mode = 'list', length = 2)
+
+dir <- "./espectros/diagonal/ExpI/"
+n_spec <- length(list.files(dir))
+M_espectros[[1]] <- FUN.read(dir, n_spec)
+
+dir <- "./espectros/diagonal/Exp II coitrario/"
+n_spec <- length(list.files(dir))
+M_espectros[[2]] <- FUN.read(dir, n_spec)
+
+M_norm <- M_espectros %>% map(FUN.norm, n = num_detec, index = index_detec)
+
+# suma el el espectro que fue separado para normalizar por detector
+M_norm <- M_norm %>% map(~ cbind(.x[[1]], .x[[2]], .x[[3]], .x[[4]]))
+
+lapply(M_norm, dim) # para inspeccion
+
+# perfil diagonal 1
+b <- 1
+ini <- 62
+fin <- 257
+Er <- FUN.cuentas(pico_Er, barrido = b, ini , fin )
+Zr <- FUN.cuentas(pico_Zr, barrido = b, ini , fin )
+Nb <- FUN.cuentas(pico_Nb, barrido = b, ini , fin )
+
+df_4 <- tibble(Er = Er, Zr = Zr, Nb =Nb) %>% rowid_to_column()
+g4 <- FUN.perfil(df_4)
+g4 %>% plotly::ggplotly()
+
+# perfil diagonal 2
+b <- 2
+ini <- 15
+fin <- 271
+Er <- FUN.cuentas(pico_Er, barrido = b, ini , fin )
+Zr <- FUN.cuentas(pico_Zr, barrido = b, ini , fin )
+Nb <- FUN.cuentas(pico_Nb, barrido = b, ini , fin )
+
+df_5 <- tibble(Er = Er, Zr = Zr, Nb =Nb) %>% rowid_to_column()
+g5 <- FUN.perfil(df_5)
+g5 %>% plotly::ggplotly()
+
+# desplazando indices
+# rowid viene a ser el giro del micrometro. 40 micrones
+df_2$rowid <- df_2$rowid + 3
+df_3$rowid <- df_3$rowid + 6
+
+# esto hay que cambiarlo a distancia
+df_1$exp <- 1
+df_2$exp <- 2
+df_3$exp <- 3

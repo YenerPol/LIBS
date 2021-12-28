@@ -30,7 +30,8 @@ FUN.read <- function(path, n){
         M
 }
 M_espectros <- FUN.read(dir, n_spec)
-M_espectros %>% round(4) %>% dim()
+M_espectros <- M_espectros %>% round(4) 
+M_espectros %>% dim()
 ```
 
 ```{r grafico inspeccion}
@@ -77,7 +78,7 @@ M_norm <- cbind(M_norm[[1]],M_norm[[2]],M_norm[[3]],M_norm[[4]])
 g <- data.frame(Wavelength = wavelen$Wavelength, Counts = M_norm[1,]) %>%                       rowid_to_column() %>%  
         ggplot(aes(Wavelength, Counts)) + geom_line() 
 
-g %>% plotly::ggplotly()
+g #%>% plotly::ggplotly()
 ```
 
 ## Selección pico Er
@@ -110,8 +111,9 @@ FUN.plot.pico <- function(pico, w = 2){
 ```
 
 ```{r pico Er}
-pico_Er <- 369.0904
-FUN.plot.pico(pico = pico_Er, w = 2) %>% plotly::ggplotly()
+pico_Er <- 312.0891
+
+FUN.plot.pico(pico = pico_Er, w = 0.5) %>% plotly::ggplotly()
 # 369.0026 - - 369.2220
 ```
 
@@ -126,8 +128,8 @@ FUN.plot.pico(pico = pico_Zr, w = 2) %>% plotly::ggplotly()
 ## Selección pico de Nb
 
 ```{r}
-pico_Nb <- 322.3791
-FUN.plot.pico(pico = pico_Nb , w = 2) %>% plotly::ggplotly()
+pico_Nb <- c(322.3791, 309.2509, 319.32)
+FUN.plot.pico(pico = pico_Nb[1] , w = 2) %>% plotly::ggplotly()
 ```
 
 ## Perfil de concentración

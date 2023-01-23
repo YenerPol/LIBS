@@ -42,7 +42,7 @@ wavelen <- read_tsv(file = paste(dir, '/a1.ols', sep = ''), skip = 6,
 wavelen$Wavelength <- round(wavelen$Wavelength, 4)
 ```
 
-#### Normalizar por suma total
+## Normalizar por suma total
 
 ```{r Normalizar por suma total}
 num_detec <- 4    # Numero de detectores
@@ -67,7 +67,7 @@ M_norm <- FUN.norm(M_espectros, n = num_detec, index = index_detec)
 M_norm <- cbind(M_norm[[1]],M_norm[[2]],M_norm[[3]],M_norm[[4]])
 ```
 
-#### Perfil de concentración
+## Perfil de concentración
 
 ```{r}
 FUN.cuentas <- function(p){
@@ -93,53 +93,103 @@ g <- data.frame(Er = Er, Zr = Zr, Nb = Nb) %>%
         pivot_longer(Er:Nb,
                      names_to = "Elementos",
                      values_to = "Intensidad") %>% 
-        ggplot(aes(x = distancia, y = Intensidad*100, colour = Elementos)) +
-        geom_point() + geom_line()
+        ggplot(aes(x = distancia, y = Intensidad, colour = Elementos)) +
+        geom_point() + geom_line() +
+        labs(x = 'Distancia (um)')
 
 caption <- paste("Lineas elegidas:","\n",
                  "Er: ",pico_Er,"\n", 
                  "Zr: ",pico_Zr,"\n", 
                  "Nb: ",pico_Nb,"\n", sep = '')
 
-g + annotate(geom = 'text', x = 80, y = 0.01, label = caption) + 
+g + annotate(geom = 'text', x = 3003, y = 0.01, label = caption) + 
         ggtitle('Perfil lado: Zr20Nb')
+
+g %>% plotly::ggplotly()
 ```
 
-#### Calculo de Coeficiente de ID
+## Calculo de Coeficiente de ID
 
 ```{r}
-# paquete para usar funcion error
-library(pracma)
+df <- data.frame(cuentas = Er) %>% 
+    rowid_to_column() %>% 
+    mutate(distancia = rowid*40)
+    
+FUN.perfil <- function(element){
+    # element: vector
+    element %>% 
+        ggplot(aes(x = distancia, y = cuentas)) +
+        geom_point() +
+        labs(x = 'Distancia (um)', y = 'Intensidad') +
+        theme_classic()
+}
 
-df <- data.frame(cuentas = Er) %>%
-        rowid_to_column() %>%
-        #.[20:50,] %>% 
-        mutate(distancia = rowid*40,
-               erf_i_cuentas = (erfc(cuentas))^-1)
-
-# df %>%
-#         ggplot(aes(x = distancia, y = cuentas)) +
-#         geom_line() + geom_point() +
-#         xlab('Distancia (um)') + 
-#         ylab('Numero de cuentas')
-
-df %>% ggplot(aes(x = distancia, y = erf_i_cuentas)) +
-       #geom_line() + 
-       geom_point() +
-       geom_smooth(method = lm) + 
-       labs(x = 'Distancia (um)', y = 'Error inversa') + 
-       theme_test()
+FUN.perfil(df) %>% plotly::ggplotly()
 ```
 
 ```{r modelo lineal}
-model <- lm(erf_i_cuentas ~ distancia, df)
-summary(model)
+df_Er <- df %>% 
+    filter(distancia >= 600 & distancia <=3500) %>% 
+    select(cuentas) %>% 
+    rowid_to_column() %>% 
+    mutate(distancia = rowid*40)
 
-model$coefficients
-TT <- 1.702e+7 # tiempo de tratamiento = 197dias
+FUN.perfil(df_Er) %>% plotly::ggplotly()
 
-D_ID <- 1/(4*TT*(model$coefficients[2]^2))      # micrones^2 / s
-D_ID <- D_ID * (1e-6)^2                         # metros^2 / s
 ```
 
-El coeficiente de ID para el Er es \\\`r D_ID\\\` metros\\\^2 / s
+```{r}
+erfcinv <- function(y) {
+    y[y < 0 | y > 2] <- NA
+    -qnorm(y/2)/sqrt(2)
+}
+
+FUN.0intercept <- function(DF, n){
+    DF <- DF %>% mutate(erfc_inv = erfcinv(cuentas/n)) 
+    fit <- lm(erfc_inv ~ distancia, DF)
+    fit$coefficients[[1]]
+}
+
+iter <- 1
+inter <- 1
+paso <- 0.00001
+v_int <- numeric()
+
+while(inter > 10^-4){
+    if(iter == 1){
+        n_max <- max(df_Er$cuentas)
+        inter <- FUN.0intercept(df_Er, n_max)
+    }else{
+        n_max <- n_max - paso
+        inter <- FUN.0intercept(df_Er, n_max)
+    }
+    iter <- iter + 1
+    v_int <- c(v_int, inter)
+    #if(iter >= 1000) break
+}
+
+#plot(v_int)
+
+g3 <- df_Er %>% 
+    mutate(erfc_inv = erfcinv(cuentas/n_max)) %>% 
+    ggplot(aes(x = distancia, y = erfc_inv)) +
+    geom_point() +
+    geom_smooth(method = 'lm') +
+    labs(x = 'Distancia (um)', y = 'Erf_Inv(Intensidad)') +
+    theme_classic()
+
+g3 %>% plotly::ggplotly()
+```
+
+```{r}
+fit <- lm(erfc_inv ~ distancia, df_Er %>% mutate(erfc_inv = erfcinv(cuentas/n_max)))
+fit
+
+D <- (10^-12)/(4*1.7021*10^7*(fit$coefficients[[2]])^2)
+D
+```
+
+```{r}
+write_delim(df_Er, file = './outputs/dataZr20Nb.txt', delim = " ", col_names = FALSE)
+```
+

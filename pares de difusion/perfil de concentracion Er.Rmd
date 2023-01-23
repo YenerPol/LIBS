@@ -17,7 +17,7 @@ Este script sirve para hallar el perfil de concentración de Er en el triplete d
 library(tidyverse, verbose = FALSE)
 # Funcion para lectura de datos
 #dir <- "./espectros/Zr_Er_Zr20Nb_19102021/"
-dir <- "./espectros/cupla Zr-Er-ZrNb paralela/ExpIII/"
+dir <- "./espectros/cupla Zr-Er-ZrNb paralela/ExpI/"
 n_spec <- length(list.files(dir))
 FUN.read <- function(path, n){
         M <- numeric()
@@ -113,7 +113,7 @@ FUN.plot.pico <- function(pico, w = 2){
 ```{r pico Er}
 pico_Er <- 312.0891
 
-FUN.plot.pico(pico = pico_Er, w = 0.5) %>% plotly::ggplotly()
+FUN.plot.pico(pico = pico_Er, w = 0.5) #%>% plotly::ggplotly()
 # 369.0026 - - 369.2220
 ```
 
@@ -122,14 +122,14 @@ FUN.plot.pico(pico = pico_Er, w = 0.5) %>% plotly::ggplotly()
 ```{r pico Zr}
 #pico_Zr <- 339.0371
 pico_Zr <- 357.0441
-FUN.plot.pico(pico = pico_Zr, w = 2) %>% plotly::ggplotly()
+FUN.plot.pico(pico = pico_Zr, w = 0.5) #%>% plotly::ggplotly()
 ```
 
 ## Selección pico de Nb
 
 ```{r}
-pico_Nb <- c(322.3791, 309.2509, 319.32)
-FUN.plot.pico(pico = pico_Nb[1] , w = 2) %>% plotly::ggplotly()
+pico_Nb <- c(322.3791, 309.2509, 319.32, 316.25)
+FUN.plot.pico(pico = pico_Nb[1] , w = 0.5) #%>% plotly::ggplotly()
 ```
 
 ## Perfil de concentración
@@ -146,28 +146,35 @@ FUN.cuentas <- function(p){
 
 Er <- FUN.cuentas(pico_Er)
 Zr <- FUN.cuentas(pico_Zr)
-Nb <- FUN.cuentas(pico_Nb)
+Nb <- FUN.cuentas(pico_Nb[1])
 
 g <- data.frame(Er = Er, Zr = Zr, Nb = Nb) %>% 
         rowid_to_column() %>% 
         pivot_longer(Er:Nb,
                      names_to = "Elementos",
                      values_to = "Intensidad") %>% 
-        ggplot(aes(x = rowid, y = Intensidad, colour = Elementos)) +
-                geom_point() + geom_line()
+        mutate(distancia = rowid*40) %>% 
+        ggplot(aes(x = distancia, y = Intensidad, colour = Elementos)) +
+                geom_point() + 
+                geom_line() + 
+                theme_classic() +
+                xlim(600,10000) + #exp I
+                #xlim(760,9360) + #exp I
+                #xlim(760,9360) + #exp I
+                labs(x = 'Distancia (um)', y = 'Intensidad')
+g
+# caption <- paste("Lineas elegidas:","\n",
+#                  "Er: ",pico_Er,"\n", 
+#                  "Zr: ",pico_Zr,"\n", 
+#                  "Nb: ",pico_Nb[1],"\n", sep = '')
 
-caption <- paste("Lineas elegidas:","\n",
-                 "Er: ",pico_Er,"\n", 
-                 "Zr: ",pico_Zr,"\n", 
-                 "Nb: ",pico_Nb,"\n", sep = '')
-
-g + annotate(geom = 'text', x = 20, y = 0.009, label = caption) 
+#g %>% plotly::ggplotly() #+ annotate(geom = 'text', x = 250, y = 0.020, label = caption) 
 ```
 
 ```{r}
-ggsave('./outputs/perfil_datos_ExpIII.jpg', device = 'jpg',
+ggsave('./outputs/perfil_datos_ExpI.jpg', device = 'jpg',
        plot = last_plot(),
        width = 24,
-       height = 16,
+       height = 12,
        units = "cm")
 ```

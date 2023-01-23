@@ -78,11 +78,11 @@ FUN.norm <- function(M, n = 4, index){
 M_norm <- FUN.norm(M_espectros, n = num_detec, index = index_detec)
 M_norm <- cbind(M_norm[[1]],M_norm[[2]],M_norm[[3]],M_norm[[4]])
 
-data.frame(Wavelength = wavelen$Wavelength, Counts = M_norm[10,]) %>%                      rowid_to_column() %>%
-        ggplot(aes(Wavelength, Counts)) + geom_line() + theme_test() + 
-        labs(title = 'Espectro normalizado lado Zr20Nb',
-                        x = 'Longitud de onda (nm)',
-                        y = 'Cantidad de cuentas (UA)') 
+# data.frame(Wavelength = wavelen$Wavelength, Counts = M_norm[10,]) %>%                      rowid_to_column() %>%
+#         ggplot(aes(Wavelength, Counts)) + geom_line() + theme_test() + 
+#         labs(title = 'Espectro normalizado lado Zr20Nb',
+#                         x = 'Longitud de onda (nm)',
+#                         y = 'Cantidad de cuentas (UA)') 
 ```
 
 #### Inspección de picos 
@@ -152,16 +152,26 @@ g <- data.frame(Er = Er, Zr = Zr, Nb = Nb) %>%
         pivot_longer(Er:Nb,
                      names_to = "Elementos",
                      values_to = "Intensidad") %>% 
-        ggplot(aes(x = rowid, y = Intensidad, colour = Elementos)) +
-        geom_point() + geom_line()
+        mutate(distancia = rowid*40) %>% 
+        ggplot(aes(x = distancia, y = Intensidad*10, colour = Elementos)) +
+          geom_point() + geom_line() + theme_classic() + 
+          labs(x = 'Distancia (µm)', y = 'Intensidad')
 
-caption <- paste("Lineas elegidas:","\n",
-                 "Er: ",pico_Er,"\n", 
-                 "Zr: ",pico_Zr,"\n", 
-                 "Nb: ",pico_Nb,"\n", sep = '')
+# caption <- paste("Lineas elegidas:","\n",
+#                  "Er: ",pico_Er,"\n", 
+#                  "Zr: ",pico_Zr,"\n", 
+#                  "Nb: ",pico_Nb,"\n", sep = '')
 
-g + annotate(geom = 'text', x = 80, y = 0.01, label = caption) + 
-        ggtitle('Perfil lado: Zr20Nb')
+# g + annotate(geom = 'text', x = 80, y = 0.01, label = caption) + 
+#         ggtitle('Perfil lado: Zr20Nb')
+
+g #%>% plotly::ggplotly()
+
+ggsave('./outputs/perfil_datos_ladoZr20Nb.jpg', device = 'jpg',
+       plot = last_plot(),
+       width = 12,
+       height = 6,
+       units = "cm")
 ```
 
 #### Calculo de Coeficiente de ID

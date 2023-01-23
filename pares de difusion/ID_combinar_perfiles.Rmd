@@ -1,0 +1,310 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r datos}
+library(tidyverse, verbose = FALSE)
+
+FUN.read <- function(path, n){
+        M <- numeric()
+        for(i in 1:n){
+                spec <- read_tsv(file = paste(path, "a",i,".ols",  sep = ''), 
+                                 skip = 6, show_col_types = FALSE) %>% 
+                        select(Counts)
+                M <- rbind(M, spec$Counts) 
+        }
+        M
+}
+
+M_espectros <- vector(mode = 'list', length = 3)
+
+dir <- "./espectros/cupla Zr-Er-ZrNb paralela/ExpI/"
+n_spec <- length(list.files(dir))
+M_espectros[[1]] <- FUN.read(dir, n_spec)
+
+dir <- "./espectros/cupla Zr-Er-ZrNb paralela/ExpII/"
+n_spec <- length(list.files(dir))
+M_espectros[[2]] <- FUN.read(dir, n_spec)
+
+dir <- "./espectros/cupla Zr-Er-ZrNb paralela/ExpIII/"
+n_spec <- length(list.files(dir))
+M_espectros[[3]] <- FUN.read(dir, n_spec)
+
+# cantidad de archivos por barrido
+lapply(M_espectros, dim)
+
+# wavelength values
+wavelen <- read_tsv(file = paste(dir, '/a1.ols', sep = ''), skip = 6, show_col_types = FALSE) %>% 
+                select(Wavelength) %>% 
+                rowid_to_column()
+
+wavelen$Wavelength <- round(wavelen$Wavelength, 4)
+
+```
+
+```{r Normalizacion}
+# La normalizacion es por detector y se realiza por suma total. Los indices 
+# correspondientes a cada detector son:
+#         
+#       - 1:2048
+#       - 2049:3983
+#       - 3984:5924
+#       - 5925:7865
+
+# Funcion de normalizacion
+FUN.norm <- function(M, n = 4, index){
+        lista <- vector(mode = 'list', length = n)
+        for(i in 1:n){
+                # separar detector
+                lista[[i]] <- M[,index[[i]]]
+                # hacer minimo = 0
+                minimo <- apply(lista[[i]], 1, min)
+                lista[[i]] <- lista[[i]] + abs(minimo)
+                # Dividir por suma total
+                total <- apply(lista[[i]], 1, sum)
+                lista[[i]] <- lista[[i]] / total
+        }
+        lista       
+}
+
+num_detec <- 4    # Numero de detectores
+index_detec <- list(c(1:2048), c(2049:3983), c(3984:5924), c(5925:7865)) 
+
+M_norm <- M_espectros %>% map(FUN.norm, n = num_detec, index = index_detec)
+
+# suma el el espectro que fue separado para normalizar por detector
+M_norm <- M_norm %>% map(~ cbind(.x[[1]], .x[[2]], .x[[3]], .x[[4]]))
+
+lapply(M_norm, dim) # para inspeccion
+
+```
+
+```{r funciones}
+# Funcion que integra el pico
+FUN.cuentas <- function(p, barrido, spec_ini = 1, spec_fin = 200){
+        ind <- wavelen$rowid[which(wavelen$Wavelength == p)]
+        m <- M_norm[[barrido]][spec_ini:spec_fin,(ind-2):(ind+2)]
+        cuentas <- apply(m, 1, sum)
+        cuentas
+}
+
+# Funcion para graficar perfil
+# 
+FUN.perfil <- function(df){
+        g <- df %>% 
+                pivot_longer(Er:Nb,
+                             names_to = "Elementos",
+                             values_to = "Intensidad") %>% 
+                ggplot(aes(x = rowid*40, y = Intensidad, colour = Elementos)) +
+                geom_point() #+ geom_line()
+        
+        caption <- paste("Lineas elegidas:","\n",
+                         "Er: ",pico_Er,"\n", 
+                         "Zr: ",pico_Zr,"\n", 
+                         "Nb: ",pico_Nb,"\n", sep = '')
+        
+        g + #annotate(geom = 'text', x = 20, y = 0.009, label = caption) +
+                xlab('Distancia (micrones)') +
+                ylab('Cantidad de cuentas (UA)')
+}
+
+pico_Er <- 369.0904
+pico_Nb <- 322.3791
+pico_Zr <- 357.0441
+```
+
+```{r PERFIL BARRIDO 1}
+###### ## ##  PERFIL BARRIDO 1   ## ## ######
+b <- 1
+ini <- 1 # 19   #descarta los primeros 18 perfiles
+fin <- 235 #234  #toma hasta perfil 234
+Er <- FUN.cuentas(pico_Er, barrido = b, ini , fin )
+Zr <- FUN.cuentas(pico_Zr, barrido = b, ini , fin )
+Nb <- FUN.cuentas(pico_Nb, barrido = b, ini , fin )
+
+df_1 <- tibble(Er = Er, Zr = Zr, Nb =Nb) %>% rowid_to_column()
+g_barrido_1 <- FUN.perfil(df_1)
+g_barrido_1
+ggsave("./outputs/g_barrido_1.png")
+```
+
+```{r PERFIL BARRIDO 2}
+b <- 2
+ini <- 1 #21
+fin <- nrow(M_norm[[b]])
+Er <- FUN.cuentas(pico_Er, barrido = b, ini , fin )
+Zr <- FUN.cuentas(pico_Zr, barrido = b, ini , fin )
+Nb <- FUN.cuentas(pico_Nb, barrido = b, ini , fin )
+
+df_2 <- tibble(Er = Er, Zr = Zr, Nb =Nb) %>% rowid_to_column()
+g_barrido_2 <- FUN.perfil(df_2)
+ggsave("./outputs/g_barrido_2.png")
+g_barrido_2
+```
+
+```{r PERFIL BARRIDO 3 }
+b <- 3
+ini <- 1 #22
+fin <- nrow(M_norm[[b]])
+Er <- FUN.cuentas(pico_Er, barrido = b, ini , fin )
+Zr <- FUN.cuentas(pico_Zr, barrido = b, ini , fin )
+Nb <- FUN.cuentas(pico_Nb, barrido = b, ini , fin )
+
+df_3 <- tibble(Er = Er, Zr = Zr, Nb =Nb) %>% rowid_to_column()
+g_barrido_3 <- FUN.perfil(df_3)
+ggsave("./outputs/g_barrido_3.png")
+g_barrido_3
+```
+
+¿Cual será la referencia para unir los datos?
+
+-   El Er tiene mucha dispercion
+
+-   Tomé de referencia al Zr
+
+```{r Sumar los tres barridos}
+# desplazando indices
+# rowid viene a ser el giro del micrometro. 40 micrones
+df_2$rowid <- df_2$rowid + 3
+df_3$rowid <- df_3$rowid + 6
+
+# esto hay que cambiarlo a distancia
+df_1$exp <- 0.334
+df_2$exp <- 1.334
+df_3$exp <- 2.334
+
+df_all <- rbind(df_1, df_2, df_3)
+
+df_all <- df_all %>%  
+        mutate(distancia = rowid*40)
+
+# eliminar puntos. Luego, puntos con mucha dispercion
+# df_all <- df_all %>% 
+#     filter(exp == 2.334 & ( distancia == 5480 | distancia == 5520))
+# df_all <- df_all %>% 
+#     filter(exp == 0.334 & ( distancia == 4640 | distancia == 4680))
+
+# Zr20Nb comienza en 4405 ((127*40)-675)
+# Zr comienza en 5755 ((127*40)+675)
+g <- df_all %>% 
+        pivot_longer(Er:Nb,
+                     names_to = "Elementos",
+                     values_to = "Intensidad") %>% 
+        ggplot(aes(x = distancia, y = Intensidad, colour = Elementos)) +
+                geom_point() + geom_line() + 
+                # centro del Er 127*40 = 5080um
+                geom_vline(xintercept = c((127*40)+675, (127*40)-675)) + 
+                annotate(geom = 'text', 
+                         x = 5075, y = 0.020, 
+                         label = 'Er \n (Inicial)') +
+                annotate(geom = 'text', 
+                         x = 1800, y = 0.020, 
+                         label = 'Zr20Nb \n (Inicial)') +
+                annotate(geom = 'text', 
+                         x = 7500, y = 0.020, 
+                         label = 'Zr \n (Inicial)') +
+                xlab('Distancia (micrones)') +
+                ylab('Cantidad de cuentas (UA)') +
+                theme_test()
+
+g #%>% plotly::ggplotly()
+```
+
+```{r save data}
+# df_Er_expI <- df_1 %>% select(rowid, Er) %>% mutate(distancia = rowid*40)
+# df_Er_expII <- df_2 %>% select(rowid, Er) %>% mutate(distancia = rowid*40)
+# df_Er_expIII <- df_3 %>% select(rowid, Er) %>% mutate(distancia = rowid*40)
+# 
+# write_delim(df_Er_, file = './outputs/dataZr20Nb.txt', delim = " ", col_names = FALSE)
+```
+
+### CALCULO DE COEFICIENTE DE ID
+
+```{r}
+df_Er <- df_all %>% 
+    select(rowid, Er, distancia) %>% 
+    set_names('rowid', 'cuentas', 'distancia')
+
+FUN.perfil <- function(element){
+    # element: vector
+    element %>% 
+        ggplot(aes(x = distancia, y = cuentas)) +
+        geom_point() +
+        labs(x = 'Distancia (um)', y = 'Numero de cuentas')
+}
+
+FUN.perfil(df_Er) %>% plotly::ggplotly()
+```
+
+```{r}
+d_ini <- 6080   # distancia inicial del perfil
+df_Er_short <- df_Er %>% 
+    filter(distancia >= d_ini & distancia <=7750) %>% 
+    mutate(distancia = distancia - d_ini)
+    
+
+FUN.perfil(df_Er_short)
+```
+
+```{r}
+erfcinv <- function(y) {
+    y[y < 0 | y > 2] <- NA
+    -qnorm(y/2)/sqrt(2)
+}
+
+#n_max <- max(df_Er_short$cuentas) - 0.0004
+
+# df_Er_short %>% 
+#     mutate(erfc_inv = erfcinv(cuentas/n_max)) %>% 
+#     ggplot(aes(x = distancia, y = erfc_inv)) +
+#     geom_point() +
+#     geom_smooth(method = 'lm')
+
+FUN.0intercept <- function(DF, n){
+    DF <- DF %>% mutate(erfc_inv = erfcinv(cuentas/n)) 
+    fit <- lm(erfc_inv ~ distancia, DF)
+    fit$coefficients[[1]]
+}
+
+iter <- 1
+inter <- 1
+paso <- 0.00001
+v_int <- numeric()
+
+while(inter > 10^-4){
+    if(iter == 1){
+        n_max <- max(df_Er_short$cuentas)
+        inter <- FUN.0intercept(df_Er_short, n_max)
+    }else{
+        n_max <- n_max - paso
+        inter <- FUN.0intercept(df_Er_short, n_max)
+    }
+    iter <- iter + 1
+    v_int <- c(v_int, inter)
+    #if(iter >= 1000) break
+}
+
+#plot(v_int)
+
+df_Er_short %>% 
+    mutate(erfc_inv = erfcinv(cuentas/n_max)) %>% 
+    ggplot(aes(x = distancia, y = erfc_inv)) +
+    geom_point() +
+    geom_smooth(method = 'lm')
+```
+
+```{r}
+fit <- lm(erfc_inv ~ distancia, df_Er_short %>% 
+              mutate(erfc_inv = erfcinv(cuentas/n_max)))
+fit
+```
+
+```{r}
+D <- (10^-12)/(4*(1.7021*10^7)*(fit$coefficients[[2]])^2)
+D
+```
+
+```{r}
+write_delim(df_Er_short, file = './outputs/dataZr_tresexp.txt', delim = " ", col_names = FALSE)
+```

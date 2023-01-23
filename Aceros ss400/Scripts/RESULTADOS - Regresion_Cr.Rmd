@@ -1,0 +1,225 @@
+---
+title: "Resultados Clasificacion (ss406-ss410)"
+author: "Paul Gomez"
+date: "2022-12-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_knit$set(root.dir = "C:/Users/gomez/Documents/LIBS/Aceros ss400") 
+```
+
+## Resultados
+
+```{r}
+library(tidyverse)
+library(mixOmics)
+```
+
+El modelo utilizado fue splsda. En primer lugar se realizo un modelo permitiendo utilizar Z predictores donde Z podía tomar valores desde 1 hasta 300 (de las 6000 posible lineas). Este modelo se utilizo como linea base. Sin embargo, el objetivo es encontrar un conjunto reducido de predictores, por lo que se limito el numero de predictores por componente a un máximo de 20. Para la evaluación del modelo se utilizo la metodología denominada **Cross-Validation** (folds = 3, rep = 5).
+
+Bajo estas condiciones el numero de predictores por componente es:
+
+```{r Data}
+## Resultados del modelo
+load("./Outputs/reg_Cr/Modelo_regresion_Cr.RData")
+load('./Data/Data.RData')
+
+target <- "Cr"
+X.test <- test_data %>% dplyr::select(V1:V5924)
+Y.test <- test_data %>% dplyr::select(all_of(target))
+
+load('./Data/Val_Data.RData')
+X.val <- val_data %>% dplyr::select(V1:V5924)
+Y.val <- val_data %>% dplyr::select(all_of(target))
+```
+
+```{r keepX}
+tune.spls$choice.keepX 
+tune.spls$choice.ncomp$ncomp 
+```
+
+```{r}
+plot(tune.spls, col = color.jet(13))
+```
+
+
+```{r grafico_violin_1}
+predict.test <- predict(final.spls, X.test)
+
+c <- unique(Y.test)[[1]] 
+                             
+data.frame(per_wt = predict.test[["predict"]][,,3], muestra = as.factor(test_data$Muestra)) %>% 
+        mutate(muestra = fct_reorder(muestra, per_wt, .fun = "mean")) %>% 
+                ggplot(aes(muestra, per_wt, fill = muestra)) +
+                        geom_violin() +
+                        geom_hline(yintercept = c, linetype = "dashed") +
+                        stat_summary(fun = "mean",
+                                     geom = "crossbar",
+                                     width = 1,
+                                     colour = "red")
+```
+**hay que revisar el error con perf(). ver script (4)**
+
+```{r grafico_violin_2}
+c <- unique(Y.test)[[1]] 
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+data.frame(per_wt_predict = predict.test[["predict"]][,,3], 
+           per_wt_real = Y.test$Cr) %>% 
+        ggplot(aes(x = per_wt_real, y = per_wt_predict)) +
+                geom_violin(aes(fill = factor(per_wt_real))) + 
+                xlab("Concentracion Real") +
+                ylab("Concentracion Predicha") +
+        
+                geom_abline(intercept = 0, slope = 1, color="red", size=0.75) +
+                geom_hline(yintercept = c, linetype = "dashed") +
+                scale_fill_manual("%wt Real", values=cbPalette) +
+                theme_classic()
+```
+
+### MSE
+
+```{r MSE_test_Data}
+## calcular MSE y MAE general
+df <- data.frame(predicted = predict.sPLS[["predict"]][,,3], 
+                 original = test_data[[target]],
+                 muestra = as.factor(test_data$Muestra)) %>% 
+                        mutate(dif= (original - predicted))
+
+mse <-  mean((df$dif)^2)
+mae <-  mean(abs(df$dif))
+rmse = sqrt(mse)
+R2 = 1-(sum((df$dif)^2)/sum((df$original -mean(df$original))^2))
+
+tibble(MSE = mse, MAE = mae, RMSE = rmse, R2 = R2)
+```
+```{r}
+## MSE por muestra
+split(df, df$muestra) %>% map_dfc(~ sd(.x$y_i))
+```
+## Validation Data
+
+```{r}
+predict.VAL <- predict(final.spls, X.val)
+
+c <- unique(Y.val)[[1]] 
+
+data.frame(per_wt = predict.VAL[["predict"]][,,3], muestra = as.factor(val_data$Muestra)) %>% 
+        mutate(muestra = fct_reorder(muestra, per_wt, .fun = "mean")) %>% 
+                ggplot(aes(muestra, per_wt, fill = muestra)) +
+                        geom_violin() +
+                        geom_hline(yintercept = c, linetype = "dashed") +
+                        stat_summary(fun = "mean",
+                                     geom = "crossbar",
+                                     width = 1,
+                                     colour = "red")
+```
+
+```{r datos_val}
+data.frame(per_wt_predict = predict.VAL[["predict"]][,,3], 
+           per_wt_real = Y.val$Cr) %>% 
+        ggplot(aes(x = per_wt_real, y = per_wt_predict)) +
+                geom_violin(aes(fill = factor(per_wt_real))) + 
+                xlab("Concentracion Real") +
+                ylab("Concentracion Predicha") +
+        
+                geom_abline(intercept = 0, slope = 1, color="red", size=0.75) +
+                geom_hline(yintercept = c, linetype = "dashed") +
+                scale_fill_manual("%wt Real", values=cbPalette) +
+                theme_classic()
+```
+
+
+```{r MSE_val_Data}
+## calcular MSE y MAE general
+df <- data.frame(predicted = predict.VAL[["predict"]][,,3], 
+                 original = val_data[[target]],
+                 muestra = as.factor(val_data$Muestra)) %>% 
+                        mutate(dif= (original - predicted))
+
+mse <-  mean((df$dif)^2)
+mae <-  mean(abs(df$dif))
+rmse = sqrt(mse)
+R2 = 1-(sum((df$dif)^2)/sum((df$original -mean(df$original))^2))
+
+tibble(MSE = mse, MAE = mae, RMSE = rmse, R2 = R2)
+```
+```{r}
+## MSE por muestra
+split(df_val, df_val$muestra) %>% map_dfc(~ (1/nrow(.x))*sum(.x$dif_2))
+```
+
+```{r}
+## NUevo metodo de evaluacion 
+## 3 predicciones se promedian 
+## media de media anterior
+## Que pasa con MAE y MSE
+
+test.2 <-  predict.sPLS[["predict"]][,,3]
+val.2 <- predict.VAL[["predict"]][,,3]
+
+```
+
+
+```{r}
+## predictores componente 1
+
+predictores <- vector(mode = "list", length = tune.spls$choice.ncomp$ncomp)
+
+for (i in 1:tune.spls$choice.ncomp$ncomp) {
+        predictores[[i]] <- as.vector(selectVar(final.spls, comp = i)$X$name)
+}
+```
+
+```{r comp 1, message=F}
+# a que elementos pertenece cada longitud de Onda?
+Ref_NIST <- read_csv("./Data/Ref_NIST.csv")
+
+# esta funcion busca los elementos que estan en la ventana
+
+FUN.windows <- function(longi, izq = 0.1, der = 0.2){
+    # tol: telerancia para la busqueda
+    # longi: longitud de onda objetivo
+    Ref_NIST %>% filter( (wavelength < (longi+der)) & (wavelength > (longi-izq)))
+}
+
+FUN.NIST <- function(comp){
+        p <- comp #%>% dplyr::filter(Freq >= f) 
+        p$wavelength %>% purrr::map_dfr(FUN.windows, .id = "ID")
+}
+
+FUN.V.to.WL <- function(comp){
+        comp %>% as.data.frame() %>% 
+                 summarise(predictor = as.character(.)) %>% 
+                         left_join(wavelen, by="predictor")
+          
+}
+
+## Longitudes de Onda
+wavelen <- read_tsv(file = "./Data/410/a1.ols", skip = 6, show_col_types = FALSE) %>% 
+    dplyr::select(Wavelength) %>% 
+    rowid_to_column() %>% 
+    summarise(wavelength = Wavelength,
+              predictor = paste('V', rowid, sep = ''))
+
+wavelen$wavelength <- round(wavelen$wavelength, 4)
+```
+
+
+```{r Comp1}
+predictores <- predictores %>% purrr::map(FUN.V.to.WL)
+```
+
+```{r Comp2}
+L <- vector(mode = 'list', length = length(predictores))
+#names(L) <- names(predictores)
+for (i in 1:length(predictores)) {
+        L[[i]] <- FUN.NIST(predictores[[i]])
+}
+```
+
+```{r}
+openxlsx::write.xlsx(L, file = './Outputs/regresion Cr/componentes.xlsx')
+```

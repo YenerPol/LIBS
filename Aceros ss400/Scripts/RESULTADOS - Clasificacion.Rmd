@@ -1,0 +1,159 @@
+---
+title: "Resultados Clasificacion (ss406-ss410)"
+author: "Paul Gomez"
+date: "2022-12-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_knit$set(root.dir = "C:/Users/gomez/Documents/LIBS/Aceros ss400") 
+```
+
+## Resultados
+
+```{r}
+library(tidyverse)
+library(mixOmics)
+```
+
+El modelo utilizado fue splsda. En primer lugar se realizo un modelo permitiendo utilizar Z predictores donde Z podía tomar valores desde 1 hasta 300 (de las 6000 posible lineas). Este modelo se utilizo como linea base. Sin embargo, el objetivo es encontrar un conjunto reducido de predictores, por lo que se limito el numero de predictores por componente a un máximo de 20. Para la evaluación del modelo se utilizo la metodología denominada **Cross-Validation** (folds = 3, rep = 5).
+
+Bajo estas condiciones el numero de predictores por componente es:
+
+```{r Data}
+## Resultados del modelo
+load("./Outputs/V1/Modelo_final.RData")
+```
+
+```{r keepX}
+tune.splsda$choice.keepX 
+```
+```{r}
+ plot(tune.splsda, col = color.jet(5))
+```
+
+```{r}
+plotIndiv(final.splsda, comp = c(1,2), # plot samples from final model
+          group = final.splsda$Y, ind.names = FALSE, # colour by class label
+          ellipse = TRUE, legend = TRUE, # include 95% confidence ellipse
+          title = ' (a) sPLS-DA on SRBCT, comp 1 & 2')
+```
+
+
+```{r}
+tune.splsda$choice.ncomp
+```
+Luego se realizo una evaluación de los predictores que conforman cada componente. Para esto nuevamente se realizo validación cruzada, esta vez se dividieron los datos en 5 grupos y se repitió 10 veces. Bajo esta metodología se obtiene una indicador denominado estabilidad. La estabilidad de una característica determinada se define como la proporción de grupos de validación cruzada (entre repeticiones) en los que se seleccionó para ser utilizada para un componente determinado.
+```{r}
+plotIndiv(final.splsda, comp = c(1,3), # plot samples from final model
+          group = final.splsda$Y, ind.names = FALSE, # colour by class label
+          ellipse = TRUE, legend = TRUE, # include 95% confidence ellipse
+          title = ' (a) sPLS-DA on SRBCT, comp 1 & 3')
+```
+
+```{r stable, echo=FALSE}
+par(mfrow=c(1,3))
+plot(perf.splsda$features$stable[[1]], type = 'h', 
+     ylab = 'Stability', 
+     xlab = 'Features', 
+     main = '(a) Comp 1', las =2)
+plot(perf.splsda$features$stable[[2]], type = 'h', 
+     ylab = 'Stability', 
+     xlab = 'Features', 
+     main = '(b) Comp 2', las =2)
+plot(perf.splsda$features$stable[[3]], type = 'h', 
+     ylab = 'Stability', 
+     xlab = 'Features',
+     main = '(c) Comp 3', las =2)
+
+```
+Para la interpretación de estos datos solo se consideraran los predictores cuya frecuencia es igual a 1 (se usaron para todos los grupos en cada repeticion).
+
+```{r comp 1, message=F}
+predictores <- perf.splsda$features$stable
+
+# a que elementos pertenece cada longitud de Onda?
+Ref_NIST <- read_csv("./Data/Ref_NIST.csv")
+
+# esta funcion busca los elementos que estan en la ventana
+
+FUN.windows <- function(longi, izq = 0.1, der = 0.2){
+    # tol: telerancia para la busqueda
+    # longi: longitud de onda objetivo
+    Ref_NIST %>% filter( (wavelength < (longi+der)) & (wavelength > (longi-izq)))
+}
+
+FUN.NIST <- function(comp, f = 0.95){
+        p <- comp %>% dplyr::filter(Freq >= f) 
+        p$wavelength %>% purrr::map_dfr(FUN.windows, .id = "ID")
+}
+
+FUN.V.to.WL <- function(comp){
+    #p <- p[[comp]] %>% 
+        comp %>% as.data.frame() %>% 
+                summarise(predictor = as.character(Var1), Freq = Freq) %>% 
+                        left_join(wavelen, by="predictor")
+}
+
+## Longitudes de Onda
+wavelen <- read_tsv(file = "./Data/410/a1.ols", skip = 6, show_col_types = FALSE) %>% 
+    dplyr::select(Wavelength) %>% 
+    rowid_to_column() %>% 
+    summarise(wavelength = Wavelength,
+              predictor = paste('V', rowid, sep = ''))
+
+wavelen$wavelength <- round(wavelen$wavelength, 4)
+```
+
+```{r Comp1}
+predictores <- predictores %>% purrr::map(FUN.V.to.WL)
+```
+
+```{r Comp2}
+L <- vector(mode = 'list', length = length(predictores))
+names(L) <- names(predictores)
+L$comp1 <- FUN.NIST(predictores[[1]], f=0.95)
+L$comp2 <- FUN.NIST(predictores[[2]], f=0.95)
+L$comp3 <- FUN.NIST(predictores[[3]], f=0.1)
+L$comp4 <- FUN.NIST(predictores[[4]], f=0.95)
+
+```
+
+Para evaluar el modelo se reservo el 20% de los datos del primer dia, con los cuales se obtuvo la siguiente matriz de confusion:
+
+```{r}
+load('./Data/Data.RData')
+X.test <- test_data %>% dplyr::select(V1:V5924)
+Y.test <- test_data %>% dplyr::select(Muestra)
+Y.test <- Y.test$Muestra %>% as.factor()
+
+predict.test <- predict(final.splsda, X.test, dist = "mahalanobis.dist")
+
+test_matrix <- table(Y.test, 
+                     factor(predict.test$class$mahalanobis.dist[,3], 
+                            levels = levels(Y.test)) )
+
+test_matrix
+```
+
+Finalmente, se realizo una nueva toma de datos al mismo conjunto de patrones. Esta nueva medicion se realizo en un dia diferentes. Este set se utilizo para evaluar la estabilidad del modelo.
+```{r}
+load('./Data/Val_Data.RData')
+X.val <- val_data %>% dplyr::select(V1:V5924)
+Y.val <- val_data %>% dplyr::select(Muestra)
+Y.val <- Y.val$Muestra %>% as.factor()
+
+predict.val <- predict(final.splsda, X.val, dist = "mahalanobis.dist")
+
+val_matrix <- table(Y.val, 
+                     factor(predict.val$class$mahalanobis.dist[,3], 
+                            levels = levels(Y.val)) )
+
+val_matrix 
+```
+Estos resultados muestran que solo tres componentes son necesarios para 
+
+```{r}
+openxlsx::write.xlsx(L, file = './Outputs/V1/componentes_clasi.xlsx')
+```

@@ -15,3 +15,7 @@ Outputs/IOMLIBS/espectro con baseline.png
 Outputs/IOMLIBS/espectro sin BL.png
 Outputs/Rplot.png
 Outputs/Rplot01.png
+*.ols
+*.xlsx
+*.RDS
+*.jpg

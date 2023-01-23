@@ -1,5 +1,5 @@
 library(tidyverse)
-dir <- "./pares de difusion/espectros/Lado Zr-20Nb/"
+dir <- "C:/Users/gomez/Documents/LIBS/pares de difusion/espectros/Lado Zr-20Nb/"
 # dir <- "./pares de difusion/espectros/Lado Zr/ExpI/"
 
 n_spec <- length(list.files(dir)) - 1
@@ -23,11 +23,11 @@ wavelen <- read_tsv(file = paste(dir, '/a1.ols', sep = ''), skip = 6,
         select(Wavelength) %>% rowid_to_column()
 
 wavelen$Wavelength <- round(wavelen$Wavelength, 4)
-
-g <- data.frame(Wavelength = wavelen$Wavelength, Counts = M_espectros[1,]) %>%             rowid_to_column() %>%
-        ggplot(aes(Wavelength, Counts)) + geom_line()
-
-g %>% plotly::ggplotly() #%>% plotly::highlight("plotly_selected")
+# 
+# g <- data.frame(Wavelength = wavelen$Wavelength, Counts = M_espectros[1,]) %>%             rowid_to_column() %>%
+#         ggplot(aes(Wavelength, Counts)) + geom_line()
+# 
+# g %>% plotly::ggplotly() #%>% plotly::highlight("plotly_selected")
 #
 #
 # Normalizacion por suma total
@@ -55,10 +55,11 @@ M_norm <- cbind(M_norm[[1]],M_norm[[2]],M_norm[[3]],M_norm[[4]])
 
 ## g Inspecion
 ## 
-g <- data.frame(Wavelength = wavelen$Wavelength, Counts = M_norm[10,]) %>%                       rowid_to_column() %>%
-        ggplot(aes(Wavelength, Counts)) + geom_line()
-
-g %>% plotly::ggplotly()
+# g <- data.frame(Wavelength = wavelen$Wavelength, Counts = M_norm[10,]) %>% 
+#         rowid_to_column() %>%
+#         ggplot(aes(Wavelength, Counts)) + geom_line()
+# 
+# g %>% plotly::ggplotly()
 #
 #
 
@@ -110,51 +111,96 @@ g <- data.frame(Er = Er, Zr = Zr, Nb = Nb) %>%
                      values_to = "Intensidad") %>% 
         ggplot(aes(x = rowid, y = Intensidad, colour = Elementos)) +
         geom_point() + geom_line()
-
-caption <- paste("Lineas elegidas:","\n",
-                 "Er: ",pico_Er,"\n", 
-                 "Zr: ",pico_Zr,"\n", 
-                 "Nb: ",pico_Nb,"\n", sep = '')
-
-g + annotate(geom = 'text', x = 87, y = 0.009, label = caption) + ggtitle('Perfil lado: Zr20Nb')
-
-###### Linearizar perfil ######
-# paquete para usar funcion error
-library(pracma)
-
-# funcion para linearizar
-FUN.lineal.erf <- function(v){
-        
-}
-
-FUN.lineal.erf(Er)
-
+g
 
 df <- data.frame(cuentas = Er) %>%
         rowid_to_column() %>%
-        mutate(distancia = rowid*40,
-               erf_i_cuentas = (erf(cuentas))^-1)
+        mutate(distancia = rowid*40) 
+        #filter(distancia > 580)
 
-df %>%
-        ggplot(aes(x = distancia, y = cuentas)) +
-        geom_line() + geom_point() +
-        xlab('Distancia (um)') + 
-        ylab('Numero de cuentas')
+# Perfil tipo Erf
+g <- df %>% ggplot(aes(x = distancia, y = cuentas)) +
+        geom_line() + geom_point() + theme_classic() +
+        labs(x = 'Distancia (µm)', y = 'Intensidad')
 
-df %>%
-        ggplot(aes(x = distancia, y = erf_i_cuentas)) +
-        #geom_line() + 
-        geom_point() +
-        geom_smooth(method = lm) +
-        xlab('Distancia (um)') + 
-        ylab('erfinv(Ier)')
+g %>% plotly::ggplotly()
 
-model <- lm(erf_i_cuentas ~ distancia, df)
-summary(model)
+## datos para comparar con wds ##
 
-model$coefficients
-TT <- 1.7021*10^7 # tiempo de tratamiento = 90 dias
+datos <- df %>% filter(distancia >= 600 )
+dir <- "C:/Users/gomez/Documents/MEGA/sabato/IS - Tesis/WDSvsLIBS/"
+write_csv(datos[,c('distancia','cuentas')], file = paste(dir,'Er_Zr20Nb_IV.txt',sep = ''), col_names = FALSE)
 
-D_ID <- 1/(4*TT*(model$coefficients[2]^2))      # micrones^2 / s
-D_ID <- D_ID * (1e-6)^2                         # metros^2 / s
-# 6.243175e-20 
+###
+ggsave('./pares de difusion/outputs/Er_en_Zr20nb_ladoZr20Nb.jpg', device = 'jpg',
+       plot = last_plot(),
+       width = 12, height = 8, units = "cm")
+
+df2 <- df %>% 
+        filter(distancia < 2000, distancia > 580) %>% 
+        select(cuentas) %>% rowid_to_column() %>% 
+        mutate(distancia = rowid*40)
+
+df2 %>% ggplot(aes(x = distancia, y = cuentas)) +
+        geom_line() + geom_point() + theme_classic() +
+        labs(x = 'Distancia (µm)', y = 'Intensidad')
+
+# Func Erf inversa
+erfcinv <- function(y) {
+        y[y < 0 | y > 2] <- NA
+        -qnorm(y/2)/sqrt(2)
+}
+
+FUN.0intercept <- function(DF, n){
+        DF <- DF %>% mutate(erfc_inv = erfcinv(cuentas/n)) 
+        fit <- lm(erfc_inv ~ distancia, DF)
+        fit$coefficients[[1]]
+}
+
+iter <- 1
+inter <- 1
+paso <- 0.000001
+v_int <- numeric()
+
+while(inter > 10^-4){
+        if(iter == 1){
+                n_max <- max(df2$cuentas)
+                inter <- FUN.0intercept(df2, n_max)
+        }else{
+                n_max <- n_max - paso
+                inter <- FUN.0intercept(df2, n_max)
+        }
+        iter <- iter + 1
+        v_int <- c(v_int, inter)
+        #if(iter >= 1000) break
+}
+plot(v_int)
+
+# Grafico perfil lineal 
+# df %>% 
+#         mutate(erfc_inv = erfcinv(cuentas/n_max)) %>% 
+#         ggplot(aes(x = distancia, y = erfc_inv)) +
+#         theme_classic() +
+#         geom_point() +
+#         geom_smooth(method = 'lm', se = FALSE)
+df2 <- df2 %>% mutate(erfc_inv = erfcinv(cuentas/n_max))
+              
+fit_Er_Zr20Nb <- lm(erfc_inv ~ distancia, df2)
+fit_Er_Zr20Nb
+
+#create scatterplot
+plot(erfc_inv ~ distancia, data=df2)
+
+#add fitted regression line to scatterplot
+abline(fit_Er_Zr20Nb)
+
+D_Er_Zr20Nb <- (10^-12)/(4*1.7021*10^7*(fit_Er_Zr20Nb$coefficients[[2]])^2)
+D_Er_Zr20Nb # --> 3e-13
+
+df2 %>% ggplot(aes(x = distancia, y = erfc_inv)) +
+        geom_point() + geom_smooth(method =  'lm', se = F) + theme_classic() +
+        labs(x = 'Distancia (µm)', y = 'ErfcInv ( IEr )')
+
+ggsave('./pares de difusion/outputs/Er_en_Zr20nb_ladoZr20Nb_Lineal.jpg', device = 'jpg',
+       plot = last_plot(),
+       width = 12, height = 8, units = "cm")

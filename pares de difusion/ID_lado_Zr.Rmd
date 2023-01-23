@@ -92,188 +92,54 @@ Nb <- FUN.cuentas(pico_Nb) %>% rev()
 Este perfil de concentración usa el pico que s uso en trabajos previos (**369nm**).
 
 ```{r}
-g <-  data.frame(Er = Er[[1]], Zr = Zr, Nb = Nb) %>% 
+g <- data.frame(Er = Er[[1]], Zr = Zr, Nb = Nb) %>% 
         rowid_to_column() %>% 
-        mutate(distancia = rowid*40) %>%  
         pivot_longer(Er:Nb,
                      names_to = "Elementos",
                      values_to = "Intensidad") %>% 
-        ggplot(aes(x = distancia, y = Intensidad, colour = Elementos)) +
-        geom_point() + geom_line()
+        mutate(distancia = rowid*40) %>% 
+        ggplot(aes(x = distancia, y = Intensidad*10, colour = Elementos)) +
+          geom_point() + geom_line() + theme_classic() + 
+          labs(title = 'Perfil lado Zr', x = 'Distancia (µm)', y = 'Intensidad')
 
-caption <- paste("Lineas elegidas:","\n",
-                 "Er: ",pico_Er[1],"\n", 
-                 "Zr: ",pico_Zr,"\n", 
-                 "Nb: ",pico_Nb,"\n", sep = '')
+# caption <- paste("Lineas elegidas:","\n",
+#                  "Er: ",pico_Er[1],"\n", 
+#                  "Zr: ",pico_Zr,"\n", 
+#                  "Nb: ",pico_Nb,"\n", sep = '')
 
-g + annotate(geom = 'text', x = 2500, y = 0.009, label = caption) + 
-        labs(title = 'Perfil lado: Zr',
-             x = 'Distancia (um)', 
-             y = 'Numero de cuentas (UA)')
+g 
+```
+```{r}
+ggsave('./outputs/perfil_datos_ladoZr.jpg', device = 'jpg',
+       plot = last_plot(),
+       width = 12,
+       height = 6,
+       units = "cm")
 ```
 
 #### Calculo de Coeficiente de ID
 
 ```{r}
-library(patchwork)
+# paquete para usar funcion error
 library(pracma)
 
-# Funcion que grafica el pico
-FUN.plot.pico <- function(pico, w = 0.5){
-        # pico: longitud de onda
-        # w: ancho de la ventana a integrar
-        data <- M_norm[,which(wavelen$Wavelength >= (pico - w) & 
-                        wavelen$Wavelength <= (pico + w))]
-        data <- data %>% 
-                as_tibble() %>% 
-                set_names(as.character(wavelen$Wavelength[
-                        which(wavelen$Wavelength >= (pico - w) &
-                              wavelen$Wavelength <= (pico + w))])) %>%
-                rowid_to_column()
+df <- data.frame(cuentas = Er[[3]]) %>%
+        rowid_to_column() %>%
+        mutate(distancia = rowid*40,
+               erf_i_cuentas = (erf(cuentas))^-1)
 
-        NAMES <- setdiff(names(data), 'rowid')
-        
-        data <- data %>% 
-                pivot_longer(all_of(NAMES), 
-                             names_to = "wavelength",
-                             names_transform = list(wavelength = as.numeric),
-                             values_to = "Intensity")
+# df %>%
+#         ggplot(aes(x = distancia, y = cuentas)) +
+#         geom_line() + geom_point() +
+#         xlab('Distancia (um)') + 
+#         ylab('Numero de cuentas')
 
-        g <- data %>% 
-                ggplot(aes(x = wavelength, y = Intensity, group = rowid)) +
-                geom_line() + 
-                geom_vline(xintercept = pico, colour = 'red')
-        g + labs( x = 'Longitud de Onda (nm)', y = NULL)
-}
+df %>% ggplot(aes(x = distancia, y = erf_i_cuentas)) +
+       #geom_line() + 
+       geom_point() +
+       geom_smooth(method = lm) + 
+       labs(x = 'Distancia (um)', y = 'Error inversa') + 
+       theme_test()
+   
 
-# Funcion que grafica el perfil del elemento seleccionado. Er...
-FUN.perfil <- function(element){
-        # element: vector
-        element %>% 
-                ggplot(aes(x = distancia, y = cuentas)) +
-                        geom_line() + geom_point() +
-                        labs(x = 'Distancia (um)', y = 'Numero de cuentas')
-}
-
-# Funcion para graficar el modelo lineal
-FUN.plot.mlineal <- function(element){
-        element %>%
-                ggplot(aes(x = distancia, y = erfcinv)) +
-                        geom_point() +
-                        geom_smooth(method = lm, formula = y ~ x) +
-                        labs(x = 'Distancia (um)', y = 'Error inversa') +
-                        theme_test()
-}
-
-ID_coef <- function(element){
-        model <- lm(erfcinv ~ distancia, element)
-        TT <- 1.702e+7 # tiempo de tratamiento = 197dias
-        D_ID <- 1/(4*TT*(model$coefficients[2]^2))      # micrones^2 / s
-        D_ID <- D_ID * (1e-6)^2                         # metros^2 / s
-        D_ID
-}
-# 
-# plot_coef <- function(A,B){
-#         g <- FUN.plot.mlineal(A, B)
-#         coef <- ID_coef(A)
-#         list(g, coef)
-# }
-
-FUN.all <- function(elemento){
-  df <- data.frame(cuentas = element) %>%
-                rowid_to_column() %>%
-                mutate(distancia = rowid*40,
-                       erfcinv = erfc(cuentas)^-1)
-  g_perfil <- FUN.perfil(df)
-  g_model <- FUN.plot.mlineal(df)
-  Coef <- ID_coef(df)
-  list(Coef, g_perfil, g_model)
-}
-
-
-```
-
-#### Grafico lineal
-
-```{r}
-ggplotRegression <- function (element) {
-
-  require(ggplot2)
-  #require(pracma)
-  
-  data <- data.frame(cuentas = element) %>%
-                rowid_to_column() %>% 
-                mutate(distancia = rowid*40,
-                       erf = erf(cuentas),
-                       erfcinv = erfc(cuentas)^-1)
-    
-  fit <- lm(erfcinv ~ distancia, data = data)
-  
-  g_raw <- data %>% ggplot(aes(x = distancia, y = cuentas)) +
-    geom_point()
-  
-  g_erf <- data %>% ggplot(aes(x = distancia, y = erf)) +
-    geom_point()
-  
-  g_erfc_inv <- data %>% ggplot(aes(x = distancia, y = erfcinv)) +
-    geom_point()
-  
-  list(g_raw, g_erf, g_erfc_inv)
-    
-  # g_model_lineal <- ggplot(fit$model, 
-  #        aes_string(x = names(fit$model)[2], 
-  #                   y = names(fit$model)[1])) + 
-  #     geom_point() +
-  #     stat_smooth(method = "lm", col = "red") +
-  #     labs(title = paste("Adj R2 = ",signif(summary(fit)$adj.r.squared, 5),
-  #                      "Intercept =",signif(fit$coef[[1]],5 ),
-  #                      " Slope =",signif(fit$coef[[2]], 5),
-  #                      " P =",signif(summary(fit)$coef[2,4], 5)))
-  # 
-  # g_perfil <- data %>% ggplot(aes(x=distancia, y=cuentas)) + geom_point()
-  # 
-  # list(g_model, g_perfil)
-  # 
-  #petal.lm <- lm(Petal.Length ~ Petal.Width, iris)
-
-
-}
-
-ggplotRegression(Er[[1]][1:25])
-```
-
-```{r}
-pico_Er <- 369.0904
-g_pico <- FUN.plot.pico(pico_Er)
-g_perfil <- FUN.perfil(Er[[1]])
-#g_perfil + inset_element(g_pico, 0.5, 0.5, 1, 1)
-lista[[1]] <- plot_coef(Er, c(1:25))
-g_mlineal <- lista[[1]][[1]]
-(g_perfil | g_pico) / g_mlineal
-```
-
-```{r}
-pico_Er <- 312.0891
-g_pico <- FUN.plot.pico(pico_Er)
-g_perfil <- FUN.perfil(pico_Er)
-#g_perfil + inset_element(g_pico, 0.5, 0.5, 1, 1)
-Er <- FUN.cuentas(pico_Er)
-lista[[2]] <- plot_coef(Er, c(1:25))
-g_mlineal <- lista[[2]][[1]]
-(g_perfil | g_pico) / g_mlineal
-```
-
-```{r}
-pico_Er <- 280.1368
-g_pico <- FUN.plot.pico(pico_Er)
-g_perfil <- FUN.perfil(pico_Er)
-#g_perfil + inset_element(g_pico, 0.5, 0.5, 1, 1)
-Er <- FUN.cuentas(pico_Er)
-lista[[3]] <- plot_coef(Er, c(8:25))
-g_mlineal <- lista[[3]][[1]]
-(g_perfil | g_pico) / g_mlineal
-```
-
-```{r}
-tibble(pico = 1, D = c(lista[[1]][[2]], lista[[2]][[2]], lista[[3]][[2]]))
 ```

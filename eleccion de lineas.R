@@ -120,9 +120,10 @@ plot_linea <- function(DF, linea){
         g <- DF %>% 
                 pivot_longer(Er:Nb, names_to = "Elemento", values_to = "counts") %>% 
                 ggplot(aes(Wavelength, counts, colour = Elemento)) +
-                        geom_point() + 
+                        #geom_point() + 
                         geom_line() +
-                        geom_vline(xintercept = linea)  
+                        #geom_vline(xintercept = linea)  +
+                        theme_classic()
         g #%>% ggplotly()
 }
 
